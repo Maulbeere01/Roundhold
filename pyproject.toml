@@ -1,0 +1,26 @@
+[tool.ruff]
+# Linter & Formatter
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.format]
+# Formatter Config
+quote-style = "double"
+docstring-code-format = true
+
+[tool.ruff.lint]
+# Linter Config
+select = ["E", "W", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+# Static Type Checker
+python_version = "3.11"
+
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+# Needed for some Libarys (e.g. pygame)
+ignore_missing_imports = true
