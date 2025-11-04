@@ -7,7 +7,7 @@ Wenn keine WSL2 oder Python, das zuerst installieren.
 **Alles auf der WSL machen:**
 1. Projekt klonen
 ```bash
-    git clone ssh://git@gitlab.reutlingen-university.de:2224/wehrberb/tower-defense.git
+    git clone ssh://git@gitlab.reutlingen-university.de:2224/wehrberb/Roundhold.git
     cd Roundhold
 ```
 2. Umgebung
