@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "td_server"
+version = "0.1.0"
+
+dependencies = [
+    "grpcio",
+    "grpcio-tools",
+    "protobuf",
+    "td_shared"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

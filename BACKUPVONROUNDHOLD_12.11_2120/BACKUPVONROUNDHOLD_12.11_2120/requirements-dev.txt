@@ -1,0 +1,7 @@
+# Core Entwickler-Tools
+ruff
+mypy
+pre-commit
+
+# Test-Framework (wird von allen 'tests/' Ordnern genutzt)
+pytest

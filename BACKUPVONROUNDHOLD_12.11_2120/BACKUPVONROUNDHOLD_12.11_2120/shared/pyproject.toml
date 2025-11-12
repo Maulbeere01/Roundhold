@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "td_shared"
+version = "0.1.0"
+
+dependencies = [
+    "protobuf"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
