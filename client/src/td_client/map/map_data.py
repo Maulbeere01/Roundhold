@@ -1,11 +1,10 @@
+# mypy: ignore-errors
 """Map generation and tile configuration."""
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
+from td_shared.map.static_map import GLOBAL_MAP_LAYOUT, TILE_TYPE_GRASS, TILE_TYPE_PATH, TILE_TYPE_WATER
 from ..config import (
-    MAP_HEIGHT_TILES,
-    MAP_WIDTH_TILES,
-    TILE_RENDER_SIZE,
     TILE_SOURCE_SIZE,
 )
 
@@ -13,9 +12,9 @@ logger = logging.getLogger(__name__)
 
 # Tile rectangles mapping tile IDs to (x, y, width, height) in source PNG
 TILE_RECTS: Dict[int, Tuple[int, int, int, int]] = {
-    0: (0, 0, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE), 
+    0: (0, 0, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
 
-    # Left terrain tiles (3x3 border set)
+    # Terrain tiles (3x3 border set) - used for both left and right islands
     1: (0, 0, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),  # Top-left
     2: (TILE_SOURCE_SIZE, 0, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),  # Top-middle
     3: (2 * TILE_SOURCE_SIZE, 0, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),  # Top-right
@@ -25,159 +24,110 @@ TILE_RECTS: Dict[int, Tuple[int, int, int, int]] = {
     7: (0, 2 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),  # Bottom-left
     8: (TILE_SOURCE_SIZE, 2 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),  # Bottom-middle
     9: (2 * TILE_SOURCE_SIZE, 2 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),  # Bottom-right
-    
-    # Right terrain tiles (3x3 border set, offset by 320px)
-    10: (320 + 0 * TILE_SOURCE_SIZE, 0 + 0 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
-    11: (320 + 1 * TILE_SOURCE_SIZE, 0 + 0 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
-    12: (320 + 2 * TILE_SOURCE_SIZE, 0 + 0 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
-    13: (320 + 0 * TILE_SOURCE_SIZE, 1 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
-    14: (320 + 1 * TILE_SOURCE_SIZE, 1 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
-    15: (320 + 2 * TILE_SOURCE_SIZE, 1 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
-    16: (320 + 0 * TILE_SOURCE_SIZE, 2 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
-    17: (320 + 1 * TILE_SOURCE_SIZE, 2 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
-    18: (320 + 2 * TILE_SOURCE_SIZE, 2 * TILE_SOURCE_SIZE, TILE_SOURCE_SIZE, TILE_SOURCE_SIZE),
 }
 
 # Elevation/cliff rendering configuration
 # Source coordinates in Tilemap_Elevation.png (x, y, width, height)
 CLIFF_TILE_RECTS: Dict[str, Tuple[int, int, int, int]] = {
-    "base": (0, 351, 191, 33),  
+    "base": (0, 351, 191, 33),
     "right_edge": (192, 351, 64, 33),  # Right edge cliff tile (covers hard edge at end of map)
 }
 
 # Elevation rendering constants
-CLIFF_DEPTH = 5  # Number of vertical cliff tile rows
-CLIFF_OVERLAP = 93  # Pixel overlap with terrain 
-CLIFF_HORIZONTAL_SPACING = 191  # spacing between cliff elements
-
-# Cliff column positions 
-# Bottom row is rendered using these static positions, plus right edge tile
-CLIFF_COLUMN_POSITIONS: List[int] = list(range(MAP_WIDTH_TILES))
+CLIFF_OVERLAP = 92  # Pixel overlap with terrain
 
 
-def _get_border_tile_key( row: int, col: int, height: int, width: int) -> str:
-    """Determine tile position key based on row and column.
-    
-        Categorizes each tile position in a rectangular map into one of 9 possible
-        border tile types based on its position relative to the map boundaries.
-        This enables automatic placement of appropriate border tiles (corners, edges,
-        center) when generating terrain maps.
-        
-        The function uses a 3x3 grid pattern:
-        - Corners: top_left, top_right, bottom_left, bottom_right
-        - Edges: top_mid, bottom_mid, mid_left, mid_right  
-        - Center: mid_mid
+def _get_smart_tile_id(row: int, col: int) -> int:
+    """Determine the correct tile ID based on position relative to the two islands.
+
+    Uses 3x3 autotile logic to determine border tiles:
+    - Left Island: columns 0-21
+    - Right Island: columns 24-45
+    - Water gap: columns 22-23 (should not call this function for water)
+    - Rows: 0-24
+
     Args:
-        row: Row index
-        col: Column index
-        height: Total map height
-        width: Total map width
-        
-    Returns:
-        Tile position key (e.g., 'top_left', 'mid_mid')
+        row: Row index (0-24)
+        col: Column index (0-45)
 
-    The returned key is then used to look up the corresponding tile ID
-    from LEFT_TILES or RIGHT_TILES dictionaries.
+    Returns:
+        Tile ID (1-9) for the appropriate border/center tile
     """
-    is_top = row == 0
-    is_bottom = row == height - 1
-    is_left = col == 0
-    is_right = col == width - 1
-    
-    if is_top:
-        return 'top_left' if is_left else (
-            'top_right' if is_right else 'top_mid'
-        )
-    elif is_bottom:
-        return 'bottom_left' if is_left else (
-            'bottom_right' if is_right else 'bottom_mid'
-        )
+    # Determine which island this tile belongs to
+    is_left_island = 0 <= col <= 21
+    is_right_island = 24 <= col <= 45
+
+    # Border detection relative to the island boundaries
+    is_top = (row == 0)
+    is_bottom = (row == 24)
+
+    if is_left_island:
+        is_left = (col == 0)
+        is_right = (col == 21)
+    elif is_right_island:
+        is_left = (col == 24)
+        is_right = (col == 45)
     else:
-        return 'mid_left' if is_left else (
-            'mid_right' if is_right else 'mid_mid'
-        )
+        return 5
+
+    # Determine tile ID using 3x3 autotile logic
+    if is_top:
+        if is_left:
+            return 1  # Top-left
+        elif is_right:
+            return 3  # Top-right
+        else:
+            return 2  # Top-middle
+    elif is_bottom:
+        if is_left:
+            return 7  # Bottom-left
+        elif is_right:
+            return 9  # Bottom-right
+        else:
+            return 8  # Bottom-middle
+    else:
+        if is_left:
+            return 4  # Mid-left
+        elif is_right:
+            return 6  # Mid-right
+        else:
+            return 5  # Center
 
 
-def generate_terrain_map(
-    width: int,
-    height: int,
-    tile_ids: Dict[str, int]
-) -> List[List[int]]:
-    """Generate a map with border tiles.
-    
-    Creates a rectangular map with specific tiles for borders
-    (corners, edges) and center areas, using a 3x3 tile pattern.
-    
-    Args:
-        width: Number of tiles horizontally
-        height: Number of tiles vertically
-        tile_ids: Dict mapping position names to tile IDs
-        
+def get_visual_map_from_layout() -> List[List[Optional[int]]]:
+    """Generate visual map from GLOBAL_MAP_LAYOUT.
+
+    Converts the static map layout to visual tile IDs:
+    - 0 (Grass) -> Smart tile ID (1-9) based on border position
+    - 1 (Path) -> Smart tile ID (1-9) based on border position (paths are overlays, base is grass)
+    - 2 (Water) -> None (transparent, background water shows through)
+
     Returns:
-        2D list of tile IDs
+        2D list of visual tile IDs (int) or None for water tiles
     """
-    return [
-        [
-            tile_ids[_get_border_tile_key(row, col, height, width)]
-            for col in range(width)
-        ]
-        for row in range(height)
-    ]
+    visual_map = []
+    for row_idx, row in enumerate(GLOBAL_MAP_LAYOUT):
+        visual_row = []
+        for col_idx, tile_type in enumerate(row):
+            if tile_type == TILE_TYPE_WATER:
+                # Water tiles - return None for transparency
+                visual_row.append(None)
+            elif tile_type == TILE_TYPE_GRASS or tile_type == TILE_TYPE_PATH:
+                # Both grass and paths use smart tile ID based on position
+                # Paths are overlays, so base terrain still needs proper borders
+                tile_id = _get_smart_tile_id(row_idx, col_idx)
+                visual_row.append(tile_id)
+            else:
+                visual_row.append(5)
+        visual_map.append(visual_row)
+    return visual_map
 
-
-# Tile ID mappings for different terrains
-LEFT_TILES = {
-    'top_left': 1, 'top_mid': 2, 'top_right': 3,
-    'mid_left': 4, 'mid_mid': 5, 'mid_right': 6,
-    'bottom_left': 7, 'bottom_mid': 8, 'bottom_right': 9
-}
-
-RIGHT_TILES = {
-    'top_left': 10, 'top_mid': 11, 'top_right': 12,
-    'mid_left': 13, 'mid_mid': 14, 'mid_right': 15,
-    'bottom_left': 16, 'bottom_mid': 17, 'bottom_right': 18
-}
-
-# Generate maps dynamically based on calculated dimensions
-_LEFT_MAP = generate_terrain_map(
-    MAP_WIDTH_TILES, MAP_HEIGHT_TILES, LEFT_TILES
-)
-_RIGHT_MAP = generate_terrain_map(
-    MAP_WIDTH_TILES, MAP_HEIGHT_TILES, RIGHT_TILES
-)
-
-
-def get_terrain_maps() -> Tuple[List[List[int]], List[List[int]]]:
-    return (_LEFT_MAP, _RIGHT_MAP)
-
-# Path tile positions for left map (row, col) coordinates
-# Coordinates are 0-based (matching the debug grid display and actual map coordinates)
-# The Path tiles on the right get deduced from the left map by mirroring the positions
-LEFT_PATH_POSITIONS: List[Tuple[int, int]] = [
-    (13, 2), (13, 3), (13, 4), (12, 4), (11, 4), (11, 5), (11, 6), (11, 7), 
-    (11, 8), (12, 8), (13, 8), (13, 9), (13, 10), (13, 11), (13, 12),
-    (12, 12), (11, 12), (10, 12), (10, 13), (10, 14), (10, 15), (11, 15),
-    (11, 16), (11, 17), (11, 18), (11, 19), (11, 20),
-    (12, 1), (13, 1), (14, 1), (15, 1), (16, 1), (17, 1),
-    (18, 1), (19, 1), (20, 1), (21, 1), (22, 1), (23, 1),
-    (23, 2), (23, 3), (23, 4), (23, 5), (23, 6), (23, 7),
-    (23, 8), (23, 9), (23, 10), (23, 11), (23, 12), (23, 13),
-    (23, 14), (23, 15), (23, 16), (23, 17), (23, 18), (23, 19), (23, 20),
-    (10, 1), (9, 1), (8, 1), (7, 1), (6, 1), (5, 1), (4, 1), (3, 1), (2, 1), (1, 1),
-    (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11),
-    (1, 12), (1, 13), (1, 14), (1, 15), (1, 16), (1, 17), (1, 18), (1, 19), (1, 20),
-    (2, 12), (3, 12), (4, 12), (5, 12), (6, 12),
-    (7, 12), (7, 13), (7, 14), (7, 15), (7, 16), (7, 17), (7, 18), (7, 19), (7, 20),
-    (22, 7), (21, 7), (20, 7), (19, 7), (18, 7), (17, 7), (16, 7),
-    (16, 8), (16, 9), (16, 10), (16, 11), (16, 12), (16, 13), (16, 14),
-    (16, 15), (16, 16), (16, 17), (16, 18), (16, 19), (16, 20),
-]
 
 
 # Foam tile positions (row, col) where foam should appear under the map
-# Only the left map is used for foam tiles, the right map is deduced from the left map by mirroring the positions
 FOAM_TILE_POSITIONS: List[Tuple[int, int]] = [
-    (24, 0), 
+    # Left island (columns 0-21)
+    (24, 0),
     (24, 1),
     (24, 2),
     (24, 3),
@@ -199,10 +149,27 @@ FOAM_TILE_POSITIONS: List[Tuple[int, int]] = [
     (24, 19),
     (24, 20),
     (24, 21),
+    # Right island (columns 24-45)
+    (24, 24),
+    (24, 25),
+    (24, 26),
+    (24, 27),
+    (24, 28),
+    (24, 29),
+    (24, 30),
+    (24, 31),
+    (24, 32),
+    (24, 33),
+    (24, 34),
+    (24, 35),
+    (24, 36),
+    (24, 37),
+    (24, 38),
+    (24, 39),
+    (24, 40),
+    (24, 41),
+    (24, 42),
+    (24, 43),
+    (24, 44),
+    (24, 45),
 ]
-
-
-logger.debug(
-    f"Generated maps: {MAP_WIDTH_TILES}x{MAP_HEIGHT_TILES} tiles "
-    f"(TILE_RENDER_SIZE={TILE_RENDER_SIZE})"
-)

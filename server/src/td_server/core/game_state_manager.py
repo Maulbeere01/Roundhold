@@ -2,23 +2,22 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import List, Optional
-from td_shared.map import PlacementGrid, mirror_paths_for_width, infer_height_from_paths
-from ..services import EconomyManager, TowerPlacementService, WaveQueue, SnapshotBuilder
+
 from td_shared.game import (
-    TOWER_STATS,
+    DEFAULT_TICK_RATE,
     MAP_WIDTH_TILES,
-    GAME_PATHS,
     PLAYER_LIVES,
     START_GOLD,
-    DEFAULT_TICK_RATE,
+    TOWER_STATS,
     PlayerID,
-    SimTowerData,
-    SimUnitData,
-    SimulationData,
     RoundResultData,
+    SimTowerData,
+    SimulationData,
+    SimUnitData,
 )
+from td_shared.map.static_map import GLOBAL_MAP_LAYOUT, TILE_TYPE_GRASS
 
+from ..services import EconomyManager, SnapshotBuilder, TowerPlacementService, WaveQueue
 
 logger = logging.getLogger(__name__)
 
@@ -32,23 +31,26 @@ class GameStateManager:
         initial_lives: int = PLAYER_LIVES,
         initial_gold: int = START_GOLD,
         default_tick_rate: int = DEFAULT_TICK_RATE,
-        economy: Optional[EconomyManager] = None,
-        placement: Optional[TowerPlacementService] = None,
-        wave_queue: Optional[WaveQueue] = None,
-        snapshot_builder: Optional[SnapshotBuilder] = None,
+        economy: EconomyManager | None = None,
+        placement: TowerPlacementService | None = None,
+        wave_queue: WaveQueue | None = None,
+        snapshot_builder: SnapshotBuilder | None = None,
     ) -> None:
-        # Shared placement grids for each player side
-        height_tiles = infer_height_from_paths(GAME_PATHS)
-        self.grid_A = PlacementGrid(MAP_WIDTH_TILES, height_tiles)
-        self.grid_B = PlacementGrid(MAP_WIDTH_TILES, height_tiles)
-        self.grid_A.populate_from_paths(GAME_PATHS)
-        self.grid_B.populate_from_paths(mirror_paths_for_width(GAME_PATHS, MAP_WIDTH_TILES))
+        # Static global map layout
+        self.map_layout = GLOBAL_MAP_LAYOUT
+
+        # Track placed towers (row, col) -> TowerPlacement
+        self._placed_towers: dict[tuple[int, int], SimTowerData] = {}
 
         # Services
         self.economy = economy or EconomyManager(initial_lives, initial_gold)
-        self.placement = placement or TowerPlacementService(self.grid_A, self.grid_B, map_width_tiles=MAP_WIDTH_TILES)
+        self.placement = placement or TowerPlacementService(
+            map_width_tiles=MAP_WIDTH_TILES
+        )
         self.wave_queue = wave_queue or WaveQueue()
-        self.snapshot_builder = snapshot_builder or SnapshotBuilder(self.placement, self.wave_queue)
+        self.snapshot_builder = snapshot_builder or SnapshotBuilder(
+            self.placement, self.wave_queue
+        )
 
         # Simulation config
         self._tick_rate: int = default_tick_rate
@@ -104,7 +106,7 @@ class GameStateManager:
         tile_row: int,
         tile_col: int,
         level: int = 1,
-    ) -> Optional[SimTowerData]:
+    ) -> SimTowerData | None:
         """Spend gold and place a tower atomically."""
         if level < 1:
             raise ValueError("level must be >= 1")
@@ -116,6 +118,31 @@ class GameStateManager:
             if not self.economy.spend_gold(player_id, cost):
                 return None
 
+            # 1. Zone Check
+            if player_id == "A" and tile_col >= 22:
+                self.economy.add_gold(player_id, cost)
+                return None
+            if player_id == "B" and tile_col < 24:
+                self.economy.add_gold(player_id, cost)
+                return None
+
+            # 2. Terrain Check (Source of Truth is the Matrix)
+            if tile_row < 0 or tile_row >= len(self.map_layout):
+                self.economy.add_gold(player_id, cost)
+                return None
+            if tile_col < 0 or tile_col >= len(self.map_layout[tile_row]):
+                self.economy.add_gold(player_id, cost)
+                return None
+            if self.map_layout[tile_row][tile_col] != TILE_TYPE_GRASS:
+                self.economy.add_gold(player_id, cost)
+                return None
+
+            # 3. Check if tile is already occupied
+            if (tile_row, tile_col) in self._placed_towers:
+                self.economy.add_gold(player_id, cost)
+                return None
+
+            # 4. Place tower
             placed = self.placement.place_tower(
                 player_id=player_id,
                 tower_type=tower_type,
@@ -125,12 +152,15 @@ class GameStateManager:
             )
 
             if placed is None:
-                # Refund on failure (e.g. invalid placement)
+                # Refund on failure
                 self.economy.add_gold(player_id, cost)
                 return None
+
+            # Track placement
+            self._placed_towers[(tile_row, tile_col)] = placed
             return placed
 
-    def add_units_to_wave(self, player_id: PlayerID, units: List[SimUnitData]) -> bool:
+    def add_units_to_wave(self, player_id: PlayerID, units: list[SimUnitData]) -> bool:
         """Append units to the next wave queue with gold validation and deduction."""
         with self._lock:
             total_cost, normalized = self.wave_queue.prepare_units(player_id, units)
@@ -147,7 +177,12 @@ class GameStateManager:
                 return False
 
             self.wave_queue.enqueue_units(normalized, self._tick_rate)
-            logger.info("Units queued: player=%s, count=%d, cost=%d", player_id, len(normalized), total_cost)
+            logger.info(
+                "Units queued: player=%s, count=%d, cost=%d",
+                player_id,
+                len(normalized),
+                total_cost,
+            )
             return True
 
     def apply_round_result(self, result: RoundResultData) -> None:

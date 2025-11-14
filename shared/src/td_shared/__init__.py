@@ -5,21 +5,27 @@ including game data definitions and deterministic simulation logic.
 """
 
 from .game import (
+    COMBAT_SECONDS,
     GAME_PATHS,
     MAP_WIDTH_TILES,
+    PLAYER_LIVES,
+    PREP_SECONDS,
+    START_GOLD,
     TILE_SIZE_PX,
     TOWER_STATS,
     UNIT_STATS,
-    TowerStats,
-    UnitStats,
-    tile_to_pixel,
     PlayerID,
     RoundResultData,
     RoundStartData,
     SimTowerData,
-    SimUnitData,
     SimulationData,
+    SimUnitData,
+    TowerStats,
+    UnitStats,
+    tile_to_pixel,
 )
+from .map import PlacementGrid
+from .protobuf import proto_to_sim_data
 from .simulation import (
     GameState,
     SimEntity,
@@ -30,8 +36,12 @@ from .simulation import (
 
 __all__ = [
     # Game definitions
+    "COMBAT_SECONDS",
     "GAME_PATHS",
     "MAP_WIDTH_TILES",
+    "PLAYER_LIVES",
+    "PREP_SECONDS",
+    "START_GOLD",
     "TILE_SIZE_PX",
     "TOWER_STATS",
     "UNIT_STATS",
@@ -45,6 +55,10 @@ __all__ = [
     "SimTowerData",
     "SimUnitData",
     "SimulationData",
+    # Map utilities
+    "PlacementGrid",
+    # Protobuf utilities
+    "proto_to_sim_data",
     # Simulation core
     "GameState",
     "SimEntity",
@@ -52,4 +66,3 @@ __all__ = [
     "SimUnit",
     "calculate_sim_dt",
 ]
-

@@ -12,3 +12,4 @@ pip-wheel-metadata/
 dist/
 build/
 *.egg-info/
+*.txt

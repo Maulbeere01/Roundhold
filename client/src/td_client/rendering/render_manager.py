@@ -1,19 +1,19 @@
 """Central render manager with layer support and Y-sorting."""
+
 import logging
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING
 
 import pygame
+from td_shared.game import MAP_WIDTH_TILES, TILE_SIZE_PX, PlayerID
+from td_shared.simulation import GameState, SimEntity
 
 from ..sprites.animation import AnimationManager
 from ..sprites.buildings import BuildingSprite
 from ..sprites.units import UnitSprite
 from .foam_renderer import FoamRenderer
-from .road_renderer import RoadRenderer
-from .coordinate_translator import CoordinateTranslator
 from .map_layer_renderer import MapLayerRenderer
+from .road_renderer import RoadRenderer
 from .sprite_factory import SpriteFactory
-from td_shared.simulation import GameState, SimEntity
-from td_shared.game import MAP_WIDTH_TILES, TILE_SIZE_PX, PlayerID
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,11 @@ if TYPE_CHECKING:
 
 class RenderManager:
     """Manages rendering order: maps, paths, Y-sorted sprites
-    
+
     Coordinates rendering of all game elements in the correct layer order,
     including static maps, animated effects, and Y-sorted sprites
     """
-    
+
     def __init__(
         self,
         render_surface: pygame.Surface,
@@ -42,7 +42,7 @@ class RenderManager:
         player_id: PlayerID,
     ):
         """Initialize render manager with target surface and common dependencies
-        
+
         Args:
             render_surface: Surface to render all elements onto
             template_manager: TemplateManager instance for assets/templates
@@ -59,214 +59,210 @@ class RenderManager:
         self.screen_width = screen_width
         self.screen_height = screen_height
         self._player_id = player_id
-        
+
         # Sprite groups for Y-sorted rendering
         self.buildings = pygame.sprite.Group()
         self.units = pygame.sprite.Group()
         self.decor = pygame.sprite.Group()
         self.effects = pygame.sprite.Group()
-        
+
         # Central animation manager
         self.animation_manager = AnimationManager()
 
         # Services
-        self.coord_translator = CoordinateTranslator(self._get_tilemaps)
-        self.map_layer_renderer = MapLayerRenderer(self.animation_manager, self.template_manager)
-        self.sprite_factory = SpriteFactory(self.template_manager, self.animation_manager)
+        self.map_layer_renderer = MapLayerRenderer(
+            self.animation_manager, self.template_manager
+        )
+        self.sprite_factory = SpriteFactory(
+            self.template_manager, self.animation_manager
+        )
         self.sprite_factory.configure_groups(self.units, self.buildings)
-        self.unit_sprites: Dict[int, UnitSprite] = self.sprite_factory.unit_sprites
-        self.tower_sprites: Dict[int, BuildingSprite] = self.sprite_factory.tower_sprites
+        self.unit_sprites: dict[int, UnitSprite] = self.sprite_factory.unit_sprites
+        self.tower_sprites: dict[int, BuildingSprite] = (
+            self.sprite_factory.tower_sprites
+        )
 
-        self.road_renderer: Optional[RoadRenderer] = None
-        self.foam_renderer: Optional[FoamRenderer] = None
+        self.road_renderer: RoadRenderer | None = None
+        self.foam_renderer: FoamRenderer | None = None
 
-        self.left_map: Optional["TileMap"] = None
-        self.right_map: Optional["TileMap"] = None
         self.map_width_px = MAP_WIDTH_TILES * TILE_SIZE_PX
 
-
-    def set_maps(self, left_map: "TileMap", right_map: "TileMap"):
-        """Set the map instances for coordinate translation."""
-        self.left_map = left_map
-        self.right_map = right_map
-        # Derive actual map width in pixels to avoid drift from theoretical constants
-        try:
-            self.map_width_px = int(self.left_map.image.get_width())
-        except Exception:
-            # Fallback to shared constant
-            self.map_width_px = MAP_WIDTH_TILES * TILE_SIZE_PX
-        self.coord_translator.set_map_width(self.map_width_px)
-        self.map_layer_renderer.configure(self.tile_size, self.screen_width, self.screen_height)
+    def set_map(self, terrain_map: "TileMap"):
+        """Set the map instance for coordinate translation."""
+        self.terrain_map = terrain_map
+        self.map_width_px = int(self.terrain_map.image.get_width())
+        self.map_layer_renderer.configure(
+            self.tile_size, self.screen_width, self.screen_height
+        )
         self.sprite_factory.configure_groups(self.units, self.buildings)
 
-    def _get_tilemaps(self):
-        return self.left_map, self.right_map
+    def initialize(self, game) -> None:
+        """Initialize all rendering components with game state.
+
+        Centralizes the initialization of all rendering subsystems:
+        - Map setup
+        - Water background
+        - Environment effects (foam, paths)
+        - Sprite templates
+
+        Args:
+            game: GameSimulation instance providing terrain_map, settings, map dimensions, etc.
+        """
+        self.set_map(game.terrain_map)
+        self.initialize_water_background()
+        self.initialize_environment_effects(
+            game.terrain_map,
+            game.settings.vertical_offset,
+            game.map_width,
+            game.center_x,
+        )
+        self.initialize_sprites(
+            game.center_x, game.center_y, game.map_width, game.settings.vertical_offset
+        )
+
+    def _get_tilemap(self):
+        return self.terrain_map
 
     def initialize_water_background(self) -> None:
         """Initialize water tile background layer
-        
+
         Loads the water tile from the separate Water.png file and scales it
         to match the tile size for tiling across the screen.
         """
         self.map_layer_renderer.initialize_water()
         logger.debug("Water background initialized")
-    
+
     def initialize_environment_effects(
-        self,
-        left_map: "TileMap",
-        right_map: "TileMap",
-        map_offset_y: int,
-        left_map_width: int,
-        center_x: int
+        self, terrain_map: "TileMap", map_offset_y: int, map_width: int, center_x: int
     ) -> None:
         """Initialize environment effects (foam, paths, etc.).
-        
+
         Centralizes the initialization of all environment rendering effects
-        
+
         Args:
-            left_map: Left TileMap instance
-            right_map: Right TileMap instance
-            map_offset_y: Vertical offset of maps
-            left_map_width: Width of left map in pixels
+            terrain_map: Single TileMap instance
+            map_offset_y: Vertical offset of map
+            map_width: Width of map in pixels
             center_x: Center X coordinate of screen
         """
-        self._initialize_foam(
-            left_map, right_map, map_offset_y
-        )
-        self._initialize_paths(
-            left_map_width, center_x, map_offset_y
-        )
+        self._initialize_foam(terrain_map, map_offset_y)
+        self._initialize_paths(map_width, center_x, map_offset_y)
         # Pass road_renderer to map_layer_renderer so it can draw paths
-        if self.road_renderer:
-            self.map_layer_renderer.set_road_renderer(self.road_renderer)
-    
-    def _initialize_foam(
-        self,
-        left_map: "TileMap",
-        right_map: "TileMap",
-        map_offset_y: int
-    ) -> None:
+        self.map_layer_renderer.set_road_renderer(self.road_renderer)
+
+    def _initialize_foam(self, terrain_map: "TileMap", map_offset_y: int) -> None:
         """Initialize foam renderer for water animation
-        
+
         Args:
-            left_map: Left TileMap instance
-            right_map: Right TileMap instance
-            map_offset_y: Vertical offset of maps
+            terrain_map: Single TileMap instance
+            map_offset_y: Vertical offset of map
         """
         from ..map import FOAM_TILE_POSITIONS
-        
+
         foam_frames = self.template_manager.get_foam_frames(
             frame_count=FoamRenderer.FOAM_FRAMES
         )
-        
+
         # Convert tile coordinates to pixel positions
-        # Same positions are used for both left and right maps
         foam_positions = []
-        
+
         for row, col in FOAM_TILE_POSITIONS:
-            # Left map position
-            x_left = left_map.rect.x + col * self.tile_size
+            x = terrain_map.rect.x + col * self.tile_size
             y = map_offset_y + row * self.tile_size
-            foam_positions.append((x_left, y, True))
-            
-            # Right map position (same tile coordinates)
-            x_right = right_map.rect.x + col * self.tile_size
-            foam_positions.append((x_right, y, False))
-        
+            # Mark left island (cols 0-21) as True, right island (cols 24-45) as False
+            is_left_island = col <= 21
+            foam_positions.append((x, y, is_left_island))
+
         self.foam_renderer = FoamRenderer(
             foam_frames,
             foam_positions,
             self.tile_size,
             self.screen_width,
-            self.screen_height
+            self.screen_height,
         )
         self.map_layer_renderer.initialize_foam(self.foam_renderer)
         logger.debug(f"Foam renderer initialized with {len(foam_positions)} positions")
-    
+
     def _initialize_paths(
-        self,
-        left_map_width: int,
-        center_x: int,
-        map_offset_y: int
+        self, map_width: int, center_x: int, map_offset_y: int
     ) -> None:
         """Initialize path manager for road/path rendering
-        
+
         Args:
-            left_map_width: Width of left map in pixels
+            map_width: Width of map in pixels
             center_x: Center X coordinate of screen
-            map_offset_y: Vertical offset of maps
+            map_offset_y: Vertical offset of map
         """
-        from ..map import LEFT_PATH_POSITIONS
-        
+        from td_shared.game import GAME_PATHS
+
         path_tile_image = self.template_manager.get_path_tile_image()
-        left_map_cols = left_map_width // self.tile_size
-        
+        map_cols = map_width // self.tile_size
+
+        # Get all path positions from both players
+        path_positions = []
+        for player_id in ["A", "B"]:
+            for route_paths in GAME_PATHS[player_id].values():
+                path_positions.extend(route_paths)
+
         self.road_renderer = RoadRenderer(
             path_tile_image,
             self.tile_size,
-            left_map_width,
-            left_map_cols,
-            center_x - left_map_width,
+            map_width,
+            map_cols,
+            center_x - map_width // 2,
             map_offset_y,
             self.screen_width,
-            self.screen_height
+            self.screen_height,
         )
-        
-        right_path_positions = self.road_renderer.mirror_paths(
-            LEFT_PATH_POSITIONS
-        )
-        path_positions = LEFT_PATH_POSITIONS + right_path_positions
+
         self.road_renderer.set_paths(path_positions)
-        logger.debug(
-            f"Road renderer initialized with {len(path_positions)} road tiles"
-        )
-    
+        logger.debug(f"Road renderer initialized with {len(path_positions)} road tiles")
+
     def initialize_sprites(
-        self,
-        center_x: int,
-        center_y: int,
-        left_map_width: int,
-        vertical_offset: int
+        self, center_x: int, center_y: int, map_width: int, vertical_offset: int
     ) -> None:
         """Initialize sprite asset templates.
-        
+
         Loads asset templates for dynamically creating sprites based on simulation state.
-        
+
         Args:
             center_x: Center X coordinate of screen
             center_y: Center Y coordinate of screen
-            left_map_width: Width of left map in pixels
-            vertical_offset: Vertical offset of maps
+            map_width: Width of map in pixels
+            vertical_offset: Vertical offset of map
         """
         self.template_manager.preload_templates()
-        self._create_static_castles(center_x, center_y, left_map_width)
+        self._create_static_castles(center_x, center_y, map_width)
         logger.debug("Sprite templates loaded")
 
     def _sim_to_screen_pos(self, entity: SimEntity) -> pygame.Vector2:
-        """Translate a simulation coordinate to a screen coordinate."""
-        is_tower = hasattr(entity, "tower_type")
-        return self.coord_translator.sim_to_screen(entity, is_tower=is_tower)
+        """Translate a simulation coordinate to a screen coordinate.
+
+        The server sends authoritative global pixel coordinates,
+        so we simply add the map offset.
+        """
+        if self.terrain_map is None:
+            return pygame.Vector2(entity.x, entity.y)
+        return pygame.Vector2(
+            entity.x + self.terrain_map.rect.x, entity.y + self.terrain_map.rect.y
+        )
 
     def sync_sprites_to_state(self, game_state: GameState) -> None:
         """Synchronize sprite positions and state with simulation.
-        
+
         This is the core method that bridges the simulation and rendering:
         - Translates local simulation coordinates to global screen coordinates
         - Creates new sprites for new simulation entities
         - Updates positions of existing sprites from simulation state
         - Removes sprites for inactive simulation entities
-        
+
         Args:
             game_state: Current simulation state
         """
-        if not self.left_map or not self.right_map:
-            logger.warning("Maps not set in RenderManager, cannot sync sprites.")
-            return
-
         # Sync units
         for unit in game_state.units:
             entity_id = unit.entity_id
-            
+
             # Check if unit is active
             if not unit.is_active:
                 # Remove sprite if it exists
@@ -274,7 +270,7 @@ class RenderManager:
                     self.sprite_factory.remove_unit_sprite(entity_id)
                     logger.debug(f"Removed inactive unit sprite {entity_id}")
                 continue
-            
+
             # Translate local simulation coordinates to global screen coordinates
             render_pos = self._sim_to_screen_pos(unit)
 
@@ -286,16 +282,18 @@ class RenderManager:
                     x=render_pos.x,
                     y=render_pos.y,
                 )
-                logger.debug(f"Created unit sprite {entity_id} (player={unit.player_id}) at ({render_pos.x}, {render_pos.y})")
+                logger.debug(
+                    f"Created unit sprite {entity_id} (player={unit.player_id}) at ({render_pos.x}, {render_pos.y})"
+                )
             else:
                 # Update existing sprite position
                 sprite = self.unit_sprites[entity_id]
                 sprite.set_position(render_pos.x, render_pos.y)
-        
+
         # Sync towers
         for tower in game_state.towers:
             entity_id = tower.entity_id
-            
+
             # Check if tower is active
             if not tower.is_active:
                 # Remove sprite if it exists
@@ -303,10 +301,10 @@ class RenderManager:
                     self.sprite_factory.remove_tower_sprite(entity_id)
                     logger.debug(f"Removed inactive tower sprite {entity_id}")
                 continue
-            
+
             # Translate local simulation coordinates to global screen coordinates
             render_pos = self._sim_to_screen_pos(tower)
-            
+
             if entity_id not in self.tower_sprites:
                 sprite = self.sprite_factory.create_tower_sprite(
                     entity_id=entity_id,
@@ -316,7 +314,9 @@ class RenderManager:
                     range_px=tower.range_px,
                 )
                 if sprite:
-                    logger.debug(f"Created tower sprite {entity_id} at ({render_pos.x}, {render_pos.y})")
+                    logger.debug(
+                        f"Created tower sprite {entity_id} at ({render_pos.x}, {render_pos.y})"
+                    )
                 else:
                     logger.warning(f"No template for tower type: {tower.tower_type}")
             else:
@@ -324,53 +324,49 @@ class RenderManager:
                 sprite.set_position(render_pos.x, render_pos.y)
 
     def _create_static_castles(
-        self,
-        center_x: int,
-        center_y: int,
-        left_map_width: int
+        self, center_x: int, center_y: int, map_width: int
     ) -> None:
         """Create static castle sprites for each player."""
-        castle_blue_image, castle_red_image = self.template_manager.get_castle_images(self.settings)
+        castle_blue_image, castle_red_image = self.template_manager.get_castle_images(
+            self.settings
+        )
 
+        # Player A castle on left side, Player B castle on right side
         castle_blue = BuildingSprite(
-            center_x - left_map_width + self.tile_size * 1.5,
+            center_x - map_width // 2 + 100,
             center_y,
             castle_blue_image,
         )
         castle_red = BuildingSprite(
-            center_x + left_map_width - self.tile_size * 1.5,
+            center_x + map_width // 2 - 100,
             center_y,
             castle_red_image,
         )
 
         self.buildings.add(castle_blue)
         self.buildings.add(castle_red)
-    
+
     def _draw_water_background(self) -> None:
         """Draw water tile background layer (lowest layer)."""
         self.map_layer_renderer.draw_background(self.render_surface)
-    
-    def _draw_foam(self) -> None:
-        """Draw animated foam layer."""
-        self.map_layer_renderer.draw_foam(self.render_surface)
-    
+
     def _draw_elevation(self, tile_map) -> None:
         """Draw elevation/cliff layer for a tilemap.
-        
+
         Args:
             tile_map: TileMap instance
         """
         elevation = tile_map.get_elevation_surface()
-        if elevation:
-            elev_offset = tile_map.get_elevation_offset()
-            self.render_surface.blit(
-                elevation,
-                (
-                    tile_map.rect.x + elev_offset[0],
-                    tile_map.rect.y + elev_offset[1]
-                )
-            )
-    
+        elev_offset = tile_map.get_elevation_offset()
+        self.render_surface.blit(
+            elevation,
+            (tile_map.rect.x + elev_offset[0], tile_map.rect.y + elev_offset[1]),
+        )
+
+    def _draw_foam(self) -> None:
+        """Draw animated foam layer."""
+        self.map_layer_renderer.draw_foam(self.render_surface)
+
     def _draw_paths(self) -> None:
         """Draw road overlay layer"""
         self.map_layer_renderer.draw_paths(self.render_surface)
@@ -378,12 +374,11 @@ class RenderManager:
     def _draw_tower_ranges(self) -> None:
         """Draw translucent range indicators for towers."""
         for sprite in self.buildings:
-            if hasattr(sprite, "get_range_overlay"):
-                overlay = sprite.get_range_overlay()
-                if overlay:
-                    surface, rect = overlay
-                    self.render_surface.blit(surface, rect)
-    
+            overlay = sprite.get_range_overlay()
+            if overlay:
+                surface, rect = overlay
+                self.render_surface.blit(surface, rect)
+
     def _draw_sorted_sprites(self) -> None:
         """Draw all sprites sorted by Y coordinate"""
         all_sprites = (
@@ -392,16 +387,14 @@ class RenderManager:
             + list(self.decor)
             + list(self.effects)
         )
-        
-        sorted_sprites = sorted(
-            all_sprites, key=lambda s: s.get_sort_key()
-        )
+
+        sorted_sprites = sorted(all_sprites, key=lambda s: s.get_sort_key())
         for sprite in sorted_sprites:
             self.render_surface.blit(sprite.image, sprite.rect)
-    
-    def draw(self, left_map, right_map) -> None:
+
+    def draw(self, terrain_map) -> None:
         """Render everything in correct layered order.
-        
+
         Rendering order:
         1. Water background (water tiles)
         2. Foam (water-land boundaries)
@@ -409,32 +402,29 @@ class RenderManager:
         4. Map tiles
         5. Paths
         6. Y-sorted sprites
-        
+
         Args:
-            left_map: Left TileMap instance
-            right_map: Right TileMap instance
+            terrain_map: Single TileMap instance
         """
         self._draw_water_background()
         self._draw_foam()
-        
-        self._draw_elevation(left_map)
-        self._draw_elevation(right_map)
-        
-        self.render_surface.blit(left_map.image, left_map.rect)
-        self.render_surface.blit(right_map.image, right_map.rect)
-        
+
+        self._draw_elevation(terrain_map)
+
+        self.render_surface.blit(terrain_map.image, terrain_map.rect)
+
         self._draw_paths()
         self._draw_tower_ranges()
         self._draw_sorted_sprites()
-    
+
     def update(self, dt: float):
         """Update dynamic sprites and animations.
-        
+
         Args:
             dt: Delta time in seconds since last frame
         """
         # Update all animations centrally
         self.animation_manager.update_all(dt)
-        
+
         # Update sprite-specific logic (e.g., movement for units)
         self.units.update(dt)
