@@ -19,9 +19,9 @@ cleanup() {
         return
     fi
     SHUTDOWN_REQUESTED=true
-    
+
     echo -e "\n${YELLOW}Shutting down all processes...${NC}"
-    
+
     safe_kill() {
         local pid=$1
         local name=$2
@@ -41,12 +41,12 @@ cleanup() {
             fi
         fi
     }
-    
+
     safe_kill "$CLIENT1_PID" "Client 1"
     safe_kill "$CLIENT2_PID" "Client 2"
-    
+
     safe_kill "$SERVER_PID" "Server"
-    
+
     echo -e "${GREEN}All processes stopped${NC}"
     exit 0
 }
@@ -54,6 +54,17 @@ cleanup() {
 trap cleanup SIGINT SIGTERM EXIT
 
 echo -e "${GREEN}Starting game server and clients...${NC}\n"
+
+# Check for and kill any existing game processes
+EXISTING_SERVER=$(ps aux | grep -E "python.*td_server" | grep -v grep | awk '{print $2}')
+EXISTING_CLIENTS=$(ps aux | grep -E "python.*td_client" | grep -v grep | awk '{print $2}')
+
+if [ ! -z "$EXISTING_SERVER" ] || [ ! -z "$EXISTING_CLIENTS" ]; then
+    echo -e "${YELLOW}Found existing processes, cleaning up...${NC}"
+    [ ! -z "$EXISTING_SERVER" ] && echo "$EXISTING_SERVER" | xargs kill -9 2>/dev/null || true
+    [ ! -z "$EXISTING_CLIENTS" ] && echo "$EXISTING_CLIENTS" | xargs kill -9 2>/dev/null || true
+    sleep 1
+fi
 
 if ! command -v python &> /dev/null; then
     echo -e "${RED}Error: python command not found${NC}"
