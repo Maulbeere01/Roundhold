@@ -218,7 +218,7 @@ class GameRpcServer(game_pb2_grpc.YourGameServiceServicer):
         finally:
             # If this client is still in waiting list and disconnects, remove it
             with self._match_lock:
-                for i, (pn, ev, _) in enumerate(self._waiting_clients):
+                for i, (pn, ev, _ob) in enumerate(self._waiting_clients):
                     if ev is ready and pn == player_name:
                         self._waiting_clients.pop(i)
                         break
