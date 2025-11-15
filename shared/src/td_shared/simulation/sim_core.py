@@ -97,6 +97,7 @@ class SimUnit(SimEntity):
     ) -> None:
         """Apply damage and record kill attribution on death."""
         self.health -= damage
+
         if self.health <= 0:
             self.health = 0
             self.is_active = False
@@ -211,6 +212,7 @@ class SimTower(SimEntity):
         # Try to shoot if cooldown is ready
         if self.current_cooldown == 0:
             target = self._find_target(enemy_units)
+
             if target is not None:
                 self._shoot(target, game_state)
                 self.current_cooldown = self.cooldown_ticks
@@ -247,12 +249,15 @@ class GameState:
         self.tick_rate = simulation_data["tick_rate"]
         self.sim_dt = calculate_sim_dt(self.tick_rate)
         self.current_tick = 0
+
         # Kill counters for reward distribution
         self.kills_by_player_A = 0
         self.kills_by_player_B = 0
+
         # Lives lost tracking (units reaching enemy base)
         self.lives_lost_player_A = 0
         self.lives_lost_player_B = 0
+
         # Timed end-condition controls
         self.min_duration_ticks = 5 * self.tick_rate
         self.post_combat_delay_ticks = 3 * self.tick_rate
@@ -281,6 +286,7 @@ class GameState:
                 route=unit_data["route"],
                 sim_dt=self.sim_dt,
             )
+
             # Units start inactive until spawn_tick
             unit.is_active = False
             self.units.append(unit)
@@ -292,6 +298,7 @@ class GameState:
                 self.units, simulation_data["units"], strict=False
             )
         }
+
         # Track units that have not spawned yet
         self._pending_units = set(self._unit_spawn_ticks.keys())
 
@@ -300,6 +307,7 @@ class GameState:
 
     def update_tick(self) -> None:
         """Advance simulation by one tick"""
+
         # Spawn units that should spawn this tick
         for unit in self.units:
             if not unit.is_active:
