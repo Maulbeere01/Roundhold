@@ -2,7 +2,7 @@ from typing import TypedDict
 
 # Global round/game pacing
 DEFAULT_TICK_RATE: int = 20
-PREP_SECONDS: float = 10.0
+PREP_SECONDS: float = 20.0
 COMBAT_SECONDS: float = 120.0
 
 PLAYER_A: str = "A"

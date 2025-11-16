@@ -70,7 +70,9 @@ class GameRpcServer(game_pb2_grpc.YourGameServiceServicer):
             )
 
             # Push to active clients' outboxes
-            for ev, outbox in getattr(self.round_manager, "_active_clients", []):
+            for ev, outbox in getattr(
+                self.round_manager, "_active_clients", {}
+            ).values():
                 outbox.append(event)
                 ev.set()
             self._log.info(
@@ -224,6 +226,9 @@ class GameRpcServer(game_pb2_grpc.YourGameServiceServicer):
                         break
 
             self._log.info("QueueForMatch: %s disconnected", player_name)
+
+            # Inform the RoundManager if the client was in a match
+            self.round_manager.handle_client_disconnect(ready)
 
     def RoundAck(
         self, request: game_pb2.RoundAckRequest, context: grpc.ServicerContext

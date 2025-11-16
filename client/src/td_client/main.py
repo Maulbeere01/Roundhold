@@ -115,11 +115,14 @@ class GameSimulation:
             sidebar_x = 20
         else:
             sidebar_x = self.display_manager.screen_width - 180
+
         top_y = 100
         w, h, pad = 160, 36, 12
+
         self.barracks_buttons = [
             pygame.Rect(sidebar_x, top_y + i * (h + pad), w, h) for i in range(5)
         ]
+
         logger.info(
             "Barracks buttons at: %s",
             [tuple((r.x, r.y, r.w, r.h)) for r in self.barracks_buttons],
@@ -232,6 +235,7 @@ class GameSimulation:
                     )
                 self.my_lives = max(0, my_vis)
                 self.opponent_lives = max(0, opp_vis)
+
         # Update phase timers
         if self.in_preparation:
             self.prep_seconds_remaining = max(0.0, self.prep_seconds_remaining - dt)
@@ -381,6 +385,7 @@ class GameApp:
                         on_round_start=self._on_round_start,
                         on_round_result=self._on_round_result,
                         on_tower_placed=self._on_tower_placed,
+                        on_opponent_disconnected=self._on_opponent_disconnected,
                     )
                     self.game_state = "WAITING"
         elif self.game_state == "GAME" and self.game is not None:
@@ -393,6 +398,7 @@ class GameApp:
     def _render_state(self) -> None:
         surface = self.display_manager.render_surface
         surface.fill((10, 20, 28))
+
         if self.game_state == "MENU":
             pygame.draw.rect(
                 surface, (60, 120, 200), self.menu_button_rect, border_radius=8
@@ -413,7 +419,23 @@ class GameApp:
             )
         elif self.game_state == "GAME" and self.game is not None:
             self.game.render()
+        elif self.game_state == "VICTORY":
+            font = pygame.font.Font(None, 72)
+            text = font.render("You Won! Opponent left.", True, (100, 255, 100))
+            surface.blit(
+                text,
+                (
+                    self.display_manager.screen_width // 2 - text.get_width() // 2,
+                    self.display_manager.screen_height // 2 - text.get_height() // 2,
+                ),
+            )
+
         self.display_manager.present()
+
+    def _on_opponent_disconnected(self) -> None:
+        """Called by the network client when the opponent disconnects."""
+        logger.info("Opponent disconnected. You win!")
+        self.game_state = "VICTORY"
 
     def _on_queue_update(self, message: str) -> None:
         logger.debug("Queue update: %s", message)
@@ -421,11 +443,13 @@ class GameApp:
 
     def _on_match_found(self, player_id: str, round_start_pb) -> None:
         logger.info("Match found. Assigned player_id=%s", player_id)
+
         # Convert proto RoundStartData to dict shape expected by GameSimulation
         simulation_data: SimulationData = proto_to_sim_data(
             round_start_pb.simulation_data
         )
         round_start: RoundStartData = {"simulation_data": simulation_data}
+
         # Initialize game simulation
         # Cast player_id from str to PlayerID (guaranteed to be "A" or "B" from server)
         player_id_typed: PlayerID = player_id
@@ -438,6 +462,7 @@ class GameApp:
             player_id_typed,
             self.network_client,
         )
+
         # Start preparation timer; load initial snapshot without incrementing the round counter
         self.game.in_preparation = True
         self.game.in_combat = False
@@ -447,16 +472,19 @@ class GameApp:
 
     def _on_round_start(self, round_start_pb) -> None:
         logger.info("RoundStart event received")
+
         if self.game is None:
             return
         simulation_data: SimulationData = proto_to_sim_data(
             round_start_pb.simulation_data
         )
+
         round_start: RoundStartData = {"simulation_data": simulation_data}
         self.game.load_round_start(round_start)
 
     def _on_round_result(self, round_result_pb) -> None:
         """Apply authoritative server results (overrides local simulation)."""
+
         if self.game is None or self.player_id is None:
             return
         logger.info(
@@ -470,6 +498,7 @@ class GameApp:
             round_result_pb.total_lives_player_B,
             round_result_pb.total_gold_player_B,
         )
+
         # Override local values with authoritative server totals
         if self.player_id == "A":
             self.game.my_lives = int(round_result_pb.total_lives_player_A)
@@ -479,8 +508,10 @@ class GameApp:
             self.game.my_lives = int(round_result_pb.total_lives_player_B)
             self.game.my_gold = int(round_result_pb.total_gold_player_B)
             self.game.opponent_lives = int(round_result_pb.total_lives_player_A)
+
         # Mark that result arrived; ack will be sent when local simulation finishes
         self.game._round_result_received = True
+
         # Transition back to preparation countdown for next round
         self.game.in_combat = False
         self.game.in_preparation = True
@@ -488,15 +519,19 @@ class GameApp:
 
     def _on_tower_placed(self, tower_placed_pb) -> None:
         """Render opponent (or my) tower immediately on server broadcast."""
+
         if self.game is None:
             return
+
         player_id = tower_placed_pb.player_id
         row = int(tower_placed_pb.tile_row)
         col = int(tower_placed_pb.tile_col)
+
         # Update placement grid
         grid = self.game.get_player_grid(player_id)
         if grid.is_buildable(row, col):
             grid.place_tower(row, col)
+
         # Spawn immediate tower sprite with range indicator
         self.game.build_controller.spawn_tower(player_id, row, col, "standard")
 

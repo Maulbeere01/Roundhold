@@ -7,6 +7,7 @@ import time
 from td_shared.game import (
     PREP_SECONDS,
     ROUND_ACK_TIMEOUT,
+    PlayerID,
     RoundResultData,
     SimulationData,
 )
@@ -31,14 +32,15 @@ class RoundManager:
         self._log = logger or logging.getLogger(__name__)
         self._stop_event = threading.Event()
         # Active match clients: list of (event, outbox)
-        self._active_clients: list[
-            tuple[threading.Event, list[game_pb2.MatchEvent]]
-        ] = []
+        self._active_clients: dict[
+            PlayerID, tuple[threading.Event, list[game_pb2.MatchEvent]]
+        ] = {}
         self._phase_lock = threading.Lock()
         self._in_preparation: bool = False
         self._current_round: int = 0
         self._rpc_server = None  # Will be set by serve() to enable wait_for_round_acks
         self._pending_round_result: RoundResultData | None = None
+        self._match_over: bool = False
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -47,10 +49,52 @@ class RoundManager:
         self, clients: list[tuple[threading.Event, list[game_pb2.MatchEvent]]]
     ) -> None:
         """Register the two clients participating in the current/next round"""
-        self._active_clients = clients
+        # We assume that the first client is Player A and the second client is Player B.
+        self._active_clients = {"A": clients[0], "B": clients[1]}
+
+        self._match_over = False  # Set the match to "active" at the start of a match
         self._log.info(
             "RoundManager: active_clients set: %d", len(self._active_clients)
         )
+
+    def handle_client_disconnect(self, disconnected_event: threading.Event):
+        """Handles the logic when a client from an active match disconnects."""
+        with self._phase_lock:
+            if self._match_over or not self._active_clients:
+                return  # Match is already over or there is no active match
+
+            disconnected_player: PlayerID | None = None
+            opponent_player: PlayerID | None = None
+
+            # Find out which player disconnected
+            for player_id, (ev, _) in self._active_clients.items():
+                if ev is disconnected_event:
+                    disconnected_player = player_id
+                    break
+
+            if not disconnected_player:
+                return  # The client was not part of the active match
+
+            self._log.warning(
+                f"Player {disconnected_player} has disconnected from the match."
+            )
+            self._match_over = True  # End the match
+
+            # Find the remaining player (the opponent)
+            opponent_player = "B" if disconnected_player == "A" else "A"
+
+            # Inform the remaining player of their victory
+            if opponent_player in self._active_clients:
+                opponent_event, opponent_outbox = self._active_clients[opponent_player]
+                win_event = game_pb2.MatchEvent(
+                    opponent_disconnected=game_pb2.OpponentDisconnected()
+                )
+                opponent_outbox.append(win_event)
+                opponent_event.set()
+                self._log.info(f"Notified Player {opponent_player} of their victory.")
+
+            # Clean up the active match
+            self._active_clients.clear()
 
     def set_rpc_server(self, rpc_server) -> None:
         """Set reference to RPC server for wait_for_round_acks"""
@@ -82,7 +126,11 @@ class RoundManager:
             self._log.info("Preparation phase ended (round %d)", self._current_round)
 
             # Only proceed if we have exactly two active clients matched
-            if not self._active_clients or len(self._active_clients) < 2:
+            if (
+                not self._active_clients
+                or len(self._active_clients) < 2
+                or self._match_over
+            ):
                 self._log.info(
                     "RoundManager: no active match (clients=%d), skipping round",
                     len(self._active_clients),
@@ -104,7 +152,7 @@ class RoundManager:
                     round_start=game_pb2.RoundStartData(simulation_data=proto_sim)
                 )
 
-                for ev, outbox in self._active_clients:
+                for ev, outbox in self._active_clients.values():
                     outbox.append(start_event)
                     ev.set()
 
@@ -117,6 +165,7 @@ class RoundManager:
             with self._phase_lock:
                 self._in_preparation = False
 
+            # Start combat suim phase in a worker thread
             worker = threading.Thread(
                 target=self._run_combat_and_callback, args=(snapshot,), daemon=True
             )
@@ -155,7 +204,7 @@ class RoundManager:
 
                 event = game_pb2.MatchEvent(round_result=rr)
 
-                for ev, outbox in self._active_clients:
+                for ev, outbox in self._active_clients.values():
                     outbox.append(event)
                     ev.set()
 

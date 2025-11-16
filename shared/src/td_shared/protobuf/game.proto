@@ -103,6 +103,7 @@ message MatchEvent {
     RoundStartData round_start = 3;
     RoundResultData round_result = 4;
     TowerPlaced tower_placed = 5;
+    OpponentDisconnected opponent_disconnected = 6;
   }
 }
 
@@ -116,3 +117,6 @@ message RoundAckResponse {
 }
 
 
+message OpponentDisconnected {
+
+}

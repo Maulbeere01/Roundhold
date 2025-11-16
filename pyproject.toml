@@ -7,6 +7,7 @@ target-version = "py311"
 # Formatter Config
 quote-style = "double"
 docstring-code-format = true
+
 exclude = [
     "shared/src/td_shared/map/static_map.py",
     "client/src/td_client/map/map_data.py",
@@ -24,6 +25,8 @@ exclude = [
 [tool.mypy]
 # Static Type Checker
 python_version = "3.11"
+
+mypy_path = "server/src:client/src:shared/src"
 
 disallow_untyped_defs = false
 warn_return_any = false
