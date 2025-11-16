@@ -50,3 +50,8 @@ exclude = [
     "shared/src/td_shared/map/static_map.py",
     "client/src/td_client/map/map_data.py",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
