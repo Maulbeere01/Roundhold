@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from td_shared.game import TILE_SIZE_PX, TOWER_STATS
+from td_shared.game import TILE_SIZE_PX, TOWER_STATS, UNIT_STATS
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +48,44 @@ class BuildController:
         # Send units buttons
         for idx, rect in enumerate(game.barracks_buttons, start=1):
             if rect.collidepoint(mx, my):
-                route = idx
-                logger.info("Barracks button clicked: route %d", route)
-                self.network_client.send_units(
-                    player_id=game.player_id,
-                    units=[{"unit_type": "standard", "route": route, "spawn_tick": 0}],
-                    on_done=game._on_send_units_response,
-                )
-                logger.debug("SendUnits dispatched for route %d", route)
+                #    Get the cost of the unit. Currently hardcoded as 'standard'.
+                #    If there are different units, this should be dynamic.
+                unit_type_to_send = "standard"
+                try:
+                    unit_cost = int(UNIT_STATS[unit_type_to_send]["cost"])
+                except (KeyError, ValueError):
+                    logger.error(
+                        f"Could not find cost for unit type: {unit_type_to_send}"
+                    )
+                    return  # Cancel action if unit type is unknown
+
+                # check if player has enough gold locally
+                if game.my_gold >= unit_cost:
+                    # predict gold usage
+                    game.my_gold -= unit_cost
+                    logger.info(
+                        f"Barracks button clicked: route {idx}. Optimistically deducted {unit_cost} gold."
+                    )
+
+                    # Send network request to server
+                    self.network_client.send_units(
+                        player_id=game.player_id,
+                        units=[
+                            {
+                                "unit_type": unit_type_to_send,
+                                "route": idx,
+                                "spawn_tick": 0,
+                            }
+                        ],
+                        on_done=game._on_send_units_response,
+                    )
+                    logger.debug(f"SendUnits dispatched for route {idx}")
+
+                else:
+                    logger.warning(
+                        f"Not enough gold to send unit (local check). Have {game.my_gold}, need {unit_cost}."
+                    )
+
                 return
 
         # Tower placement
