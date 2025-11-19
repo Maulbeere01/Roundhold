@@ -14,13 +14,14 @@ repos:
     hooks:
       - id: ruff
         args: ["--fix"]
-        exclude: '^shared/src/td_shared/map/static_map\.py$|^client/src/td_client/map/map_data\.py$'
+        # Exclude map data and generated protobuf files
+        exclude: '^shared/src/td_shared/map/static_map\.py$|^client/src/td_client/map/map_data\.py$|.*_pb2\.py$'
       - id: ruff-format
-        exclude: '^shared/src/td_shared/map/static_map\.py$|^client/src/td_client/map/map_data\.py$'
+        exclude: '^shared/src/td_shared/map/static_map\.py$|^client/src/td_client/map/map_data\.py$|.*_pb2\.py$'
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.10.1
     hooks:
       - id: mypy
         args: [--ignore-missing-imports]
-        exclude: '^shared/src/td_shared/map/static_map\.py$|^client/src/td_client/map/map_data\.py$'
+        exclude: '^shared/src/td_shared/map/static_map\.py$|^client/src/td_client/map/map_data\.py$|.*_pb2\.py$'

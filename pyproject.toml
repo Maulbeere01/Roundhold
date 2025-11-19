@@ -11,6 +11,7 @@ docstring-code-format = true
 exclude = [
     "shared/src/td_shared/map/static_map.py",
     "client/src/td_client/map/map_data.py",
+    "*_pb2.py",
 ]
 
 [tool.ruff.lint]
@@ -20,6 +21,7 @@ ignore = ["E501"]
 exclude = [
     "shared/src/td_shared/map/static_map.py",
     "client/src/td_client/map/map_data.py",
+    "*_pb2.py",
 ]
 
 [tool.mypy]
@@ -27,13 +29,15 @@ exclude = [
 python_version = "3.11"
 
 mypy_path = "server/src:client/src:shared/src"
+explicit_package_bases = false
+namespace_packages = false
 
 disallow_untyped_defs = false
 warn_return_any = false
 warn_unused_ignores = false
 warn_redundant_casts = false
 
-# Needed for some Libarys (e.g. pygame, protobuf)
+# Needed for some Libraries (e.g. pygame, protobuf)
 ignore_missing_imports = true
 
 disable_error_code = [
@@ -43,15 +47,16 @@ disable_error_code = [
     "import-untyped",      # Allow imports without stubs
     "union-attr",          # Allow accessing attributes on union types
     "has-type",            # Allow untyped variables
-    "assignment",           # Allow type assignment issues
+    "assignment",          # Allow type assignment issues
     "misc",                # Allow miscellaneous type errors
-    "typeddict-item",       # Allow TypedDict item issues
-    "index",                # Allow indexing issues
+    "typeddict-item",      # Allow TypedDict item issues
+    "index",               # Allow indexing issues
 ]
 
 exclude = [
     "shared/src/td_shared/map/static_map.py",
     "client/src/td_client/map/map_data.py",
+    "_pb2.py$",
 ]
 
 [tool.pytest.ini_options]

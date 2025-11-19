@@ -108,16 +108,19 @@ class RenderManager:
         Args:
             game: GameSimulation instance providing terrain_map, settings, map dimensions, etc.
         """
-        self.set_map(game.terrain_map)
+        self.set_map(game.map_state.terrain_map)
         self.initialize_water_background()
         self.initialize_environment_effects(
-            game.terrain_map,
+            game.map_state.terrain_map,
             game.settings.vertical_offset,
-            game.map_width,
-            game.center_x,
+            game.map_state.map_width,
+            game.map_state.center_x,
         )
         self.initialize_sprites(
-            game.center_x, game.center_y, game.map_width, game.settings.vertical_offset
+            game.map_state.center_x,
+            game.map_state.center_y,
+            game.map_state.map_width,
+            game.settings.vertical_offset,
         )
 
     def _get_tilemap(self):

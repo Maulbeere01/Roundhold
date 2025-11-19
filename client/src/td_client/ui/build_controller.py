@@ -16,7 +16,7 @@ class BuildController:
 
     def _get_my_map_and_grid(self, game=None):
         target = game or self.game
-        return target.terrain_map, target.get_player_grid(target.player_id)
+        return target.map_state.terrain_map, target.get_player_grid(target.player_id)
 
     def handle_mouse_motion(self, event, game) -> None:
         mx, my = event.pos
@@ -26,27 +26,28 @@ class BuildController:
             local_y = my - my_map.rect.y
             row, col = my_grid.pixel_to_grid_coords(local_x, local_y)
             if my_grid.is_buildable(row, col):
-                game.hover_tile = (row, col)
+                game.ui_state.hover_tile = (row, col)
             else:
-                game.hover_tile = None
+                game.ui_state.hover_tile = None
         else:
-            game.hover_tile = None
+            game.ui_state.hover_tile = None
 
     def handle_mouse_click(self, event, game) -> None:
         mx, my = event.pos
         # Ranked by priority
         # Tower button (toggle build mode)
-        if game.tower_button.collidepoint(mx, my):
-            game.tower_build_mode = not game.tower_build_mode
-            if not game.tower_build_mode:
-                game.hover_tile = None
+        if game.ui_state.tower_button.collidepoint(mx, my):
+            game.ui_state.tower_build_mode = not game.ui_state.tower_build_mode
+            if not game.ui_state.tower_build_mode:
+                game.ui_state.hover_tile = None
             logger.info(
-                "Tower build mode: %s", "ON" if game.tower_build_mode else "OFF"
+                "Tower build mode: %s",
+                "ON" if game.ui_state.tower_build_mode else "OFF",
             )
             return
 
         # Send units buttons
-        for idx, rect in enumerate(game.barracks_buttons, start=1):
+        for idx, rect in enumerate(game.ui_state.barracks_buttons, start=1):
             if rect.collidepoint(mx, my):
                 #    Get the cost of the unit. Currently hardcoded as 'standard'.
                 #    If there are different units, this should be dynamic.
@@ -60,9 +61,9 @@ class BuildController:
                     return  # Cancel action if unit type is unknown
 
                 # check if player has enough gold locally
-                if game.my_gold >= unit_cost:
+                if game.player_state.my_gold >= unit_cost:
                     # predict gold usage
-                    game.my_gold -= unit_cost
+                    game.player_state.my_gold -= unit_cost
                     logger.info(
                         f"Barracks button clicked: route {idx}. Optimistically deducted {unit_cost} gold."
                     )
@@ -83,13 +84,13 @@ class BuildController:
 
                 else:
                     logger.warning(
-                        f"Not enough gold to send unit (local check). Have {game.my_gold}, need {unit_cost}."
+                        f"Not enough gold to send unit (local check). Have {game.player_state.my_gold}, need {unit_cost}."
                     )
 
                 return
 
         # Tower placement
-        if game.tower_build_mode:
+        if game.ui_state.tower_build_mode:
             my_map, my_grid = self._get_my_map_and_grid(game)
             if my_map.rect.collidepoint(mx, my):
                 local_x = mx - my_map.rect.x
@@ -98,9 +99,13 @@ class BuildController:
                 tower_cost = int(TOWER_STATS["standard"]["cost"])
                 # Capture state before build attempt for rollback
                 was_empty = my_grid.is_buildable(row, col)
-                sprite_existed = (game.player_id, row, col) in game._local_towers
+                sprite_existed = (
+                    game.player_id,
+                    row,
+                    col,
+                ) in game.ui_state.local_towers
                 # always try to build, server will validate
-                game.my_gold -= tower_cost
+                game.player_state.my_gold -= tower_cost
                 my_grid.place_tower(row, col)
                 sprite_created = self.spawn_tower(game.player_id, row, col, "standard")
                 logger.info(
@@ -123,31 +128,33 @@ class BuildController:
                         success, row=r, col=c, was_empty=was_e, sprite_existed=spr_ex
                     ),
                 )
-                game.tower_build_mode = False
-                game.hover_tile = None
+                game.ui_state.tower_build_mode = False
+                game.ui_state.hover_tile = None
 
     def spawn_tower(self, player_id: str, row: int, col: int, tower_type: str) -> bool:
         """Spawn a tower sprite. Returns True if a new sprite was created, False if one already existed."""
         key = (player_id, row, col)
-        if key in self.game._local_towers:
+        if key in self.game.ui_state.local_towers:
             return False  # Sprite already exists
-        tmap = self.game.terrain_map
+        tmap = self.game.map_state.terrain_map
         tower_info = TOWER_STATS.get(tower_type)
         range_px = float(tower_info["range_px"]) if tower_info else 120.0
         x = tmap.rect.x + col * TILE_SIZE_PX + TILE_SIZE_PX / 2.0
         y = tmap.rect.y + row * TILE_SIZE_PX + TILE_SIZE_PX
-        image = self.game.render_manager.template_manager.get_tower_template(tower_type)
+        image = self.game.sim_state.render_manager.template_manager.get_tower_template(
+            tower_type
+        )
         if image is None:
             return False
         from ..sprites.buildings import BuildingSprite
 
         sprite = BuildingSprite(x=x, y=y, image=image, range_px=range_px)
-        self.game.render_manager.buildings.add(sprite)
-        self.game._local_towers[key] = sprite
+        self.game.sim_state.render_manager.buildings.add(sprite)
+        self.game.ui_state.local_towers[key] = sprite
         return True  # New sprite created
 
     def remove_tower(self, player_id: str, row: int, col: int) -> None:
         key = (player_id, row, col)
-        sprite = self.game._local_towers.pop(key, None)
+        sprite = self.game.ui_state.local_towers.pop(key, None)
         if sprite:
             sprite.kill()

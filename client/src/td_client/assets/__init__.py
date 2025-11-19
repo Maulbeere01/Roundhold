@@ -1,6 +1,6 @@
 """Asset loading and management."""
 
-from .loader import AssetLoader
+from .asset_loader import AssetLoader
 from .template_manager import TemplateManager
 
-__all__ = ['AssetLoader', 'TemplateManager']
+__all__ = ["AssetLoader", "TemplateManager"]

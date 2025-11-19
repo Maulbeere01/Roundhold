@@ -2,7 +2,7 @@
 
 import pygame
 
-from ..assets.loader import AssetLoader
+from ..assets.asset_loader import AssetLoader
 from ..map.map_data import CLIFF_OVERLAP, CLIFF_TILE_RECTS
 
 

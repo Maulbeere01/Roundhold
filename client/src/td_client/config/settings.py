@@ -28,7 +28,7 @@ class GameSettings:
     vertical_offset: int = TILE_SIZE_PX  # Vertical positioning offset for maps
 
     # Debug
-    show_grid: bool = True  # Display debug grid overlay on startup
+    show_grid: bool = False  # Display debug grid overlay on startup
     show_grid_coords: bool = True  # Show row,col coordinates in grid cells
     grid_color: tuple = (255, 255, 255, 100)  # RGBA color for grid lines
     grid_thickness: int = 1  # Grid line thickness in pixels

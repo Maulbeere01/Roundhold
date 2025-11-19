@@ -1,10 +1,8 @@
-from typing import Dict, List, Optional, Tuple
-
 import pygame
-
-from .loader import AssetLoader
-from ..config import GameSettings
 from td_shared.game import PlayerID
+
+from ..config import GameSettings
+from .asset_loader import AssetLoader
 
 
 class TemplateManager:
@@ -12,8 +10,8 @@ class TemplateManager:
 
     def __init__(self, asset_loader: AssetLoader):
         self.asset_loader = asset_loader
-        self._unit_templates: Dict[Tuple[str, PlayerID], List[pygame.Surface]] = {}
-        self._tower_templates: Dict[str, pygame.Surface] = {}
+        self._unit_templates: dict[tuple[str, PlayerID], list[pygame.Surface]] = {}
+        self._tower_templates: dict[str, pygame.Surface] = {}
 
     def preload_templates(self) -> None:
         """Preload static templates that are not player dependent"""
@@ -26,16 +24,22 @@ class TemplateManager:
         pygame.draw.rect(standard_tower_surface, (100, 60, 30), (10, 10, 40, 60))
         self._tower_templates["standard"] = standard_tower_surface
 
-    def get_tower_template(self, tower_type: str) -> Optional[pygame.Surface]:
+    def get_tower_template(self, tower_type: str) -> pygame.Surface | None:
         return self._tower_templates.get(tower_type)
 
-    def get_unit_template(self, unit_type: str, player_id: PlayerID) -> List[pygame.Surface]:
+    def get_unit_template(
+        self, unit_type: str, player_id: PlayerID
+    ) -> list[pygame.Surface]:
         cache_key = (unit_type, player_id)
         if cache_key not in self._unit_templates:
-            self._unit_templates[cache_key] = self._create_unit_template(unit_type, player_id)
+            self._unit_templates[cache_key] = self._create_unit_template(
+                unit_type, player_id
+            )
         return self._unit_templates[cache_key]
 
-    def _create_unit_template(self, unit_type: str, player_id: PlayerID) -> List[pygame.Surface]:
+    def _create_unit_template(
+        self, unit_type: str, player_id: PlayerID
+    ) -> list[pygame.Surface]:
         """Create a unit template for a specific player"""
         if player_id == "A":
             unit_color = (40, 220, 40, 255)
@@ -56,7 +60,7 @@ class TemplateManager:
             water_image = pygame.transform.scale(water_image, (tile_size, tile_size))
         return water_image
 
-    def get_foam_frames(self, frame_count: int) -> List[pygame.Surface]:
+    def get_foam_frames(self, frame_count: int) -> list[pygame.Surface]:
         return self.asset_loader.load_spritesheet(
             self.asset_loader.paths.foam,
             frame_count=frame_count,
@@ -69,7 +73,9 @@ class TemplateManager:
         pygame.draw.rect(surface, (140, 110, 80, 255), surface.get_rect(), 4)
         return surface
 
-    def get_castle_images(self, settings: GameSettings) -> Tuple[pygame.Surface, pygame.Surface]:
+    def get_castle_images(
+        self, settings: GameSettings
+    ) -> tuple[pygame.Surface, pygame.Surface]:
         castle_blue_image = self.asset_loader.load_image(
             self.asset_loader.paths.castle_blue,
             scale_factor=settings.default_sprite_scale,
@@ -79,5 +85,3 @@ class TemplateManager:
             scale_factor=settings.default_sprite_scale,
         )
         return castle_blue_image, castle_red_image
-
-
