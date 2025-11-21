@@ -25,6 +25,7 @@ from .game import (
     tile_to_pixel,
 )
 from .map import PlacementGrid
+from .map.static_map import GLOBAL_MAP_LAYOUT
 from .protobuf import proto_to_sim_data
 from .simulation import (
     GameState,
@@ -55,6 +56,7 @@ __all__ = [
     "SimTowerData",
     "SimUnitData",
     "SimulationData",
+    "GLOBAL_MAP_LAYOUT",
     # Map utilities
     "PlacementGrid",
     # Protobuf utilities

@@ -15,6 +15,8 @@ from .game_balance import (
     TILE_SIZE_PX,
     TOWER_STATS,
     UNIT_STATS,
+    ZONE_BOUNDARY_LEFT,
+    ZONE_BOUNDARY_RIGHT,
     TowerStats,
     UnitStats,
     tile_to_pixel,
@@ -24,8 +26,8 @@ from .protocol import (
     RoundResultData,
     RoundStartData,
     SimTowerData,
-    SimUnitData,
     SimulationData,
+    SimUnitData,
 )
 
 __all__ = [
@@ -43,6 +45,8 @@ __all__ = [
     "TILE_SIZE_PX",
     "TOWER_STATS",
     "UNIT_STATS",
+    "ZONE_BOUNDARY_LEFT",
+    "ZONE_BOUNDARY_RIGHT",
     "TowerStats",
     "UnitStats",
     "tile_to_pixel",
@@ -53,4 +57,3 @@ __all__ = [
     "SimUnitData",
     "SimulationData",
 ]
-

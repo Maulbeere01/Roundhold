@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import pygame
 from td_shared import (
     COMBAT_SECONDS,
-    GAME_PATHS,
+    GLOBAL_MAP_LAYOUT,
     PLAYER_LIVES,
     PREP_SECONDS,
     START_GOLD,
@@ -111,15 +111,8 @@ class GameFactory:
             asset_loader=game.asset_loader,
         )
 
-        # Initialize placement grids (after map dimensions are known)
-        game.map_state.placement_grid_A = PlacementGrid(
-            game.map_state.map_cols, game.map_state.map_rows
-        )
-        game.map_state.placement_grid_B = PlacementGrid(
-            game.map_state.map_cols, game.map_state.map_rows
-        )
-        game.map_state.placement_grid_A.populate_from_paths(GAME_PATHS["A"])
-        game.map_state.placement_grid_B.populate_from_paths(GAME_PATHS["B"])
+        # Initialize placement grid
+        game.map_state.placement_grid = PlacementGrid(GLOBAL_MAP_LAYOUT)
 
     @staticmethod
     def _initialize_rendering(game: GameSimulation) -> None:

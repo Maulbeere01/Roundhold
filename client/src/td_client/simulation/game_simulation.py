@@ -62,11 +62,7 @@ class GameSimulation:
 
     # public API
     def get_player_grid(self, player_id: PlayerID) -> PlacementGrid:
-        grid = (
-            self.map_state.placement_grid_A
-            if player_id == "A"
-            else self.map_state.placement_grid_B
-        )
+        grid = self.map_state.placement_grid
         if grid is None:
             raise RuntimeError(
                 f"Placement grid for player {player_id} is not initialized"

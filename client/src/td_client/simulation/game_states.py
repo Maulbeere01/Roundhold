@@ -24,8 +24,7 @@ class MapState:
     map_rows: int = 0
     map_cols: int = 0
     terrain_map: TileMap | None = None
-    placement_grid_A: PlacementGrid | None = None
-    placement_grid_B: PlacementGrid | None = None
+    placement_grid: PlacementGrid | None = None
 
 
 @dataclass

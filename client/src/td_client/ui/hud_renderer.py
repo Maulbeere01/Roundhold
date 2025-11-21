@@ -87,13 +87,8 @@ class HUDRenderer:
             game.map_state.center_x,
             game.map_state.map_width,
             game.settings.vertical_offset,
-            placement_grid_left=game.map_state.placement_grid_A,
-            placement_grid_right=game.map_state.placement_grid_B,
-            left_origin=(
-                game.map_state.terrain_map.rect.x,
-                game.map_state.terrain_map.rect.y,
-            ),
-            right_origin=(
+            placement_grid=game.map_state.placement_grid,
+            origin=(
                 game.map_state.terrain_map.rect.x,
                 game.map_state.terrain_map.rect.y,
             ),

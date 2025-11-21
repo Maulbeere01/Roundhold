@@ -55,6 +55,10 @@ TILE_SIZE_PX = 40
 # Map dimensions
 MAP_WIDTH_TILES = 46
 
+# Build zone boundaries (columns, inclusive)
+ZONE_BOUNDARY_LEFT = 21
+ZONE_BOUNDARY_RIGHT = 24
+
 
 def tile_to_pixel(row: int, col: int) -> tuple[float, float]:
     """Convert tile coordinates (row, col) to pixel coordinates (x, y).

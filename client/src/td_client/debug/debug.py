@@ -39,10 +39,8 @@ class DebugRenderer:
         center_x: int,
         map_width: int,
         vertical_offset: int,
-        placement_grid_left: PlacementGrid | None = None,
-        placement_grid_right: PlacementGrid | None = None,
-        left_origin: tuple[int, int] | None = None,
-        right_origin: tuple[int, int] | None = None,
+        placement_grid: PlacementGrid | None = None,
+        origin: tuple[int, int] | None = None,
     ) -> None:
         """Draw grid overlay with optional coordinates.
 
@@ -51,10 +49,8 @@ class DebugRenderer:
             center_x: X coordinate of screen center
             map_width: Width of map in pixels
             vertical_offset: Vertical offset of map
-            placement_grid_left: Optional placement grid for left side
-            placement_grid_right: Optional placement grid for right side
-            left_origin: Optional origin (x, y) for left grid
-            right_origin: Optional origin (x, y) for right grid
+            placement_grid: Placement grid to visualize
+            origin: Origin (x, y) for grid rendering
         """
         if not self.show_grid:
             return
@@ -62,14 +58,8 @@ class DebugRenderer:
         render_width, render_height = surface.get_size()
         grid_surface = pygame.Surface((render_width, render_height), pygame.SRCALPHA)
 
-        if placement_grid_left is not None and left_origin is not None:
-            self._draw_single_grid(
-                grid_surface, placement_grid_left, left_origin[0], left_origin[1]
-            )
-        if placement_grid_right is not None and right_origin is not None:
-            self._draw_single_grid(
-                grid_surface, placement_grid_right, right_origin[0], right_origin[1]
-            )
+        if placement_grid is not None and origin is not None:
+            self._draw_single_grid(grid_surface, placement_grid, origin[0], origin[1])
 
         if self.show_coords:
             self._draw_coordinates(
@@ -112,6 +102,8 @@ class DebugRenderer:
                     color = (50, 100, 200, 70)
                 elif state == GridCellState.OCCUPIED:
                     color = (220, 60, 60, 100)
+                elif state == GridCellState.BLOCKED:
+                    color = (90, 90, 120, 80)
                 else:
                     color = (0, 0, 0, 0)
                 pygame.draw.rect(surface, color, rect)

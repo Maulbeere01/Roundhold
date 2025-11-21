@@ -16,7 +16,7 @@ class BuildController:
 
     def _get_my_map_and_grid(self, game=None):
         target = game or self.game
-        return target.map_state.terrain_map, target.get_player_grid(target.player_id)
+        return target.map_state.terrain_map, target.map_state.placement_grid
 
     def handle_mouse_motion(self, event, game) -> None:
         mx, my = event.pos
@@ -25,7 +25,7 @@ class BuildController:
             local_x = mx - my_map.rect.x
             local_y = my - my_map.rect.y
             row, col = my_grid.pixel_to_grid_coords(local_x, local_y)
-            if my_grid.is_buildable(row, col):
+            if my_grid.validate_build(game.player_id, row, col):
                 game.ui_state.hover_tile = (row, col)
             else:
                 game.ui_state.hover_tile = None
@@ -99,6 +99,14 @@ class BuildController:
                 tower_cost = int(TOWER_STATS["standard"]["cost"])
                 # Capture state before build attempt for rollback
                 was_empty = my_grid.is_buildable(row, col)
+                if not my_grid.validate_build(game.player_id, row, col):
+                    logger.info(
+                        "Rejected local build at (%d,%d) for player %s (zone/occupied)",
+                        row,
+                        col,
+                        game.player_id,
+                    )
+                    return
                 sprite_existed = (
                     game.player_id,
                     row,
