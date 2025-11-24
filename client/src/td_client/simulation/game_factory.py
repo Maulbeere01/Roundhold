@@ -26,7 +26,7 @@ from ..debug import DebugRenderer
 from ..map import TileMap, get_visual_map_from_layout
 from ..rendering import RenderManager
 from ..ui import BuildController, HUDRenderer, InputController
-from ..wave_simulator import WaveSimulator
+from .wave_simulator import WaveSimulator
 
 logger = logging.getLogger(__name__)
 

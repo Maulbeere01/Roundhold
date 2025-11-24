@@ -10,7 +10,7 @@ from ..map import TileMap
 from ..rendering import RenderManager
 from ..sprites import BuildingSprite
 from ..ui import BuildController, HUDRenderer, InputController
-from ..wave_simulator import WaveSimulator
+from .wave_simulator import WaveSimulator
 
 
 @dataclass

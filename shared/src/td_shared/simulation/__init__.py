@@ -1,12 +1,8 @@
 """Deterministic simulation core."""
 
-from .sim_core import (
-    GameState,
-    SimEntity,
-    SimTower,
-    SimUnit,
-    calculate_sim_dt,
-)
+from .base import SimEntity, calculate_sim_dt
+from .entities import SimTower, SimUnit
+from .game_state import GameState
 
 __all__ = [
     "GameState",
@@ -15,4 +11,3 @@ __all__ = [
     "SimUnit",
     "calculate_sim_dt",
 ]
-

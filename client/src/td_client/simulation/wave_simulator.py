@@ -1,4 +1,3 @@
-from typing import Optional
 from td_shared.game import SimulationData
 from td_shared.simulation import GameState
 
@@ -10,11 +9,11 @@ class WaveSimulator:
     """Synchronises the deterministic simulation with the render loop"""
 
     def __init__(self) -> None:
-        self._game_state: Optional[GameState] = None
+        self._game_state: GameState | None = None
         self._accumulator: float = 0.0
 
     @property
-    def game_state(self) -> Optional[GameState]:
+    def game_state(self) -> GameState | None:
         """Return the currently loaded game state, if any"""
         return self._game_state
 
@@ -47,4 +46,3 @@ class WaveSimulator:
             ticks_processed += 1
 
         return ticks_processed
-

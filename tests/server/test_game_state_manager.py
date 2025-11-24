@@ -9,8 +9,6 @@ from server.src.td_server.services import (
 )
 
 
-# A "fixture" is a pytest helper function that runs before each test.
-# It's perfect for setting up complex objects like the GameStateManager.
 @pytest.fixture
 def game_state_manager() -> GameStateManager:
     """Creates a clean GameStateManager instance for each test."""
@@ -84,7 +82,7 @@ def test_build_tower_on_invalid_terrain(game_state_manager: GameStateManager):
 
     # Assert
     assert result is None  # Should fail.
-    # IMPORTANT: Check that the gold was refunded!
+    # Check that the gold was refunded!
     assert game_state_manager.get_player_gold("A") == 100
 
 
