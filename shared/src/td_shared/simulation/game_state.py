@@ -1,5 +1,3 @@
-"""Deterministic single-round simulation state."""
-
 from __future__ import annotations
 
 from ..game.protocol import PlayerID, SimulationData

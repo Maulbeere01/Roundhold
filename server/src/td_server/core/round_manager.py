@@ -174,19 +174,10 @@ class RoundManager:
             worker.join()
 
             # Wait for both clients to acknowledge they finished rendering the round
-            if self._rpc_server:
-                self._log.info(
-                    "Waiting for RoundAcks (round %d)...", self._current_round
-                )
-                self._rpc_server.wait_for_round_acks(
-                    self._current_round, timeout=ROUND_ACK_TIMEOUT
-                )
-            else:
-                # Fallback: just wait a fixed amount if no RPC server reference
-                self._log.warning(
-                    "No RPC server reference, using fixed 2s delay instead of RoundAck"
-                )
-                time.sleep(2.0)
+            self._log.info("Waiting for RoundAcks (round %d)...", self._current_round)
+            self._rpc_server.wait_for_round_acks(
+                self._current_round, timeout=ROUND_ACK_TIMEOUT
+            )
 
             # After ACKs, push RoundResult to clients (authoritative end-of-round results)
             if self._pending_round_result and self._active_clients:
