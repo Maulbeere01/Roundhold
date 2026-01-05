@@ -22,6 +22,7 @@ from .events import (
     RoundChangedEvent,
     RoundResultEvent,
     RoundStartEvent,
+    RouteHoverChangedEvent,
     SendUnitsResponseEvent,
     # Server response events
     ServerResponseEvent,
@@ -58,6 +59,7 @@ __all__ = [
     "UIEvent",
     "ToggleBuildModeEvent",
     "HoverTileChangedEvent",
+    "RouteHoverChangedEvent",
     # State events
     "StateEvent",
     "GoldChangedEvent",

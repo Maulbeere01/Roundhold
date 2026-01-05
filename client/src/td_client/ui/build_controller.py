@@ -13,11 +13,9 @@ from td_client.events import (
     SendUnitsResponseEvent,
     ToggleBuildModeEvent,
     HoverTileChangedEvent,
+    RouteHoverChangedEvent,
     GoldChangedEvent,
 )
-
-if TYPE_CHECKING:
-    from ..simulation.game_simulation import GameSimulation
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +60,26 @@ class BuildController:
         return target.terrain_map, target.get_player_grid(target.player_id)
 
     def handle_mouse_motion(self, event, game) -> None:
-        """Handle mouse motion - updates hover tile via event."""
+        """Handle mouse motion - updates hover tile and route hover via events."""
         mx, my = event.pos
         my_map, my_grid = self._get_my_map_and_grid(game)
 
+        # Check for route button hover FIRST
+        old_hovered_route = game.ui_state.hovered_route
+        new_hovered_route = None
+        buttons = game.ui_state.barracks_buttons
+        for idx, rect in enumerate(buttons, start=1):
+            if rect.collidepoint(mx, my):
+                new_hovered_route = idx
+                break
+
+        # Update route hover state and publish event if changed
+        if old_hovered_route != new_hovered_route:
+            game.ui_state.hovered_route = new_hovered_route
+            if self.event_bus:
+                self.event_bus.publish(RouteHoverChangedEvent(route=new_hovered_route))
+
+        # Check for tile hover (for build mode)
         old_hover = game.ui_state.hover_tile
         new_hover = None
 

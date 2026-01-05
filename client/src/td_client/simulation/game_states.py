@@ -61,6 +61,9 @@ class UIState:
     tower_button: pygame.Rect | None = None
     tower_build_mode: bool = False
     hover_tile: tuple[int, int] | None = None
+    hovered_route: int | None = None  # Route number (1-5) being hovered, or None
+    last_clicked_route: int | None = None  # Last clicked route for visual feedback
+    click_time: float = 0.0  # Time when route was last clicked
     local_towers: dict[tuple[str, int, int], BuildingSprite] = None
 
     def __post_init__(self):

@@ -193,6 +193,13 @@ class HoverTileChangedEvent(UIEvent):
     tile: tuple[int, int] | None  # (row, col) or None if not hovering
 
 
+@dataclass(frozen=True)
+class RouteHoverChangedEvent(UIEvent):
+    """Mouse is hovering over a route button."""
+
+    route: int | None  # Route number (1-5) or None if not hovering
+
+
 # =============================================================================
 # State Change Events (Game state mutations)
 # =============================================================================

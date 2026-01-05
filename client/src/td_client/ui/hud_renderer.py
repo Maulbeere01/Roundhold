@@ -9,6 +9,8 @@ class HUDRenderer:
 
     def render(self, game) -> None:
         surface = game.display_manager.render_surface
+        hovered_route = game.ui_state.hovered_route
+        
         # Basic HUD
         font = pygame.font.Font(None, 28)
         my_hud = font.render(
@@ -28,11 +30,26 @@ class HUDRenderer:
         else:
             surface.blit(my_hud, (20, 20))
             right_x = game.display_manager.screen_width - 20 - opp_hud.get_width()
-            surface.blit(opp_hud, (right_x, 20))
-
-        # Send units buttons
+            surface.blit(opp_hud, (right_x, 20))        # Send units buttons (highlight if hovered or clicked)
+        import time
+        current_time = time.time()
         for i, rect in enumerate(game.ui_state.barracks_buttons, start=1):
-            pygame.draw.rect(surface, (60, 60, 120), rect, border_radius=6)
+            is_hovered = (hovered_route == i)
+            is_recently_clicked = (game.ui_state.last_clicked_route == i and 
+                                  current_time - game.ui_state.click_time < 0.5)
+            
+            # TEST: Use bright green for recently clicked buttons
+            if is_recently_clicked:
+                btn_color = (0, 255, 0)  # Bright green when clicked
+            elif is_hovered:
+                btn_color = (100, 100, 180)  # Brighter blue when hovered
+            else:
+                btn_color = (60, 60, 120)  # Dark blue default
+                
+            pygame.draw.rect(surface, btn_color, rect, border_radius=6)
+            if is_hovered:
+                # Draw a border to emphasize the hovered button
+                pygame.draw.rect(surface, (150, 150, 255), rect, width=2, border_radius=6)
             label = font.render(f"Send route {i}", True, (255, 255, 255))
             label_rect = label.get_rect(center=rect.center)
             surface.blit(label, label_rect)
