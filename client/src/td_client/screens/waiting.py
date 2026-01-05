@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import pygame
 
+from td_client.events import QueueUpdateEvent
+
 from .base import Screen
 
 if TYPE_CHECKING:
@@ -17,11 +19,18 @@ class WaitingScreen(Screen):
         super().__init__(app)
         self.message: str = "Connecting..."
 
-    def enter(self, **kwargs) -> None:
-        self.message = kwargs.get("message", "Searching for opponent...")
+    def _subscribe_events(self) -> None:
+        """Subscribe to queue update events."""
+        unsub = self.app.event_bus.subscribe(QueueUpdateEvent, self._on_queue_update)
+        self._add_subscription(unsub)
 
-    def set_message(self, message: str) -> None:
-        self.message = message
+    def _on_queue_update(self, event: QueueUpdateEvent) -> None:
+        """Handle queue update from EventBus."""
+        self.message = event.message
+
+    def enter(self, **kwargs) -> None:
+        super().enter(**kwargs)
+        self.message = kwargs.get("message", "Searching for opponent...")
 
     def handle_event(self, event: pygame.event.Event) -> None:
         # No interaction needed in waiting screen

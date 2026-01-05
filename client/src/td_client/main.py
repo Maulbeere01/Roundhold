@@ -5,6 +5,7 @@ import pygame
 from td_client.assets import AssetLoader
 from td_client.config import AssetPaths, GameSettings
 from td_client.display import DisplayManager
+from td_client.events import EventBus
 from td_client.network import NetworkClient, NetworkEventRouter
 from td_client.screens import (
     GameScreen,
@@ -29,9 +30,13 @@ class GameApp:
         self.display_manager = DisplayManager()
         self.clock = self.display_manager.clock
 
-        # Network, Event Router for  all Events send by server through the QueueForMatch stream
+        # Central event bus for all client-side communication
+        self.event_bus = EventBus()
+        self.event_bus.set_main_thread()
+
+        # Network client and event router (publishes to event_bus)
         self.network_client = NetworkClient()
-        self.router = NetworkEventRouter(self)
+        self.router = NetworkEventRouter(self, self.event_bus)
 
         self.screens: dict[str, Screen] = {
             "MENU": MenuScreen(self),
@@ -44,6 +49,8 @@ class GameApp:
 
     def switch_screen(self, name: str, **kwargs) -> None:
         logger.info("Switching to screen: %s", name)
+        # Clean up subscriptions from the old screen
+        self.current_screen.exit()
         self.current_screen = self.screens[name]
         self.current_screen.enter(**kwargs)
 
@@ -54,6 +61,9 @@ class GameApp:
             while running:
                 # time since last frame in seconds
                 dt = self.clock.tick(self.settings.fps) / 1000.0
+
+                # Process any pending events from background threads (network)
+                self.event_bus.process_pending()
 
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT or (
@@ -71,6 +81,7 @@ class GameApp:
                 self.display_manager.present()
 
         finally:
+            self.event_bus.clear()
             self.display_manager.cleanup()
             self.network_client.close()
 

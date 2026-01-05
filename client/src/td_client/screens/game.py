@@ -6,7 +6,12 @@ from typing import TYPE_CHECKING
 import pygame
 from td_shared import PlayerID, RoundStartData, SimulationData, proto_to_sim_data
 
-from ..network.listener import NetworkListener
+from td_client.events import (
+    RoundResultEvent,
+    RoundStartEvent,
+    TowerPlacedEvent,
+)
+
 from ..simulation.game_factory import GameFactory
 from .base import Screen
 
@@ -17,15 +22,29 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class GameScreen(Screen, NetworkListener):
-    """Wraps GameSimulation and handles network callbacks."""
+class GameScreen(Screen):
+    """Wraps GameSimulation and handles network events via EventBus."""
 
     def __init__(self, app: GameApp) -> None:
         super().__init__(app)
         self.game: GameSimulation | None = None
         self.player_id: PlayerID | None = None
 
+    def _subscribe_events(self) -> None:
+        """Subscribe to game-relevant events from the EventBus."""
+        self._add_subscription(
+            self.app.event_bus.subscribe(RoundStartEvent, self._on_round_start)
+        )
+        self._add_subscription(
+            self.app.event_bus.subscribe(RoundResultEvent, self._on_round_result)
+        )
+        self._add_subscription(
+            self.app.event_bus.subscribe(TowerPlacedEvent, self._on_tower_placed)
+        )
+
     def enter(self, **kwargs) -> None:
+        super().enter(**kwargs)
+
         player_id = kwargs.get("player_id")
         round_start_pb = kwargs.get("round_start_pb")
 
@@ -50,6 +69,7 @@ class GameScreen(Screen, NetworkListener):
             settings=self.app.settings,
             player_id=player_id_typed,
             network_client=self.app.network_client,
+            event_bus=self.app.event_bus,
         )
 
         self.game.phase_state.in_preparation = True
@@ -58,6 +78,13 @@ class GameScreen(Screen, NetworkListener):
             self.game.phase_state.prep_seconds_total
         )
         self.game.load_initial_round_preview(round_start)
+
+    def exit(self) -> None:
+        """Clean up game simulation when leaving screen."""
+        super().exit()
+        if self.game:
+            self.game.cleanup()
+            self.game = None
 
     def handle_event(self, event: pygame.event.Event) -> None:
         if self.game:
@@ -71,43 +98,41 @@ class GameScreen(Screen, NetworkListener):
         if self.game:
             self.game.render()
 
-    # network-driven events
-    def on_round_start(self, round_start_pb) -> None:
+    # Event handlers (called via EventBus)
+    def _on_round_start(self, event: RoundStartEvent) -> None:
+        """Handle round start event from EventBus."""
         if not self.game:
             return
         simulation_data: SimulationData = proto_to_sim_data(
-            round_start_pb.simulation_data
+            event.round_start_pb.simulation_data
         )
         round_start: RoundStartData = {"simulation_data": simulation_data}
         self.game.load_round_start(round_start)
 
-    def on_round_result(self, round_result_pb) -> None:
+    def _on_round_result(self, event: RoundResultEvent) -> None:
+        """Handle round result event from EventBus."""
         if not self.game or not self.player_id:
             return
         logger.info(
             "RoundResult: A -%d +%d, B -%d +%d (A %d lives/%d gold, B %d lives/%d gold)",
-            round_result_pb.lives_lost_player_A,
-            round_result_pb.gold_earned_player_A,
-            round_result_pb.lives_lost_player_B,
-            round_result_pb.gold_earned_player_B,
-            round_result_pb.total_lives_player_A,
-            round_result_pb.total_gold_player_A,
-            round_result_pb.total_lives_player_B,
-            round_result_pb.total_gold_player_B,
+            event.lives_lost_player_A,
+            event.gold_earned_player_A,
+            event.lives_lost_player_B,
+            event.gold_earned_player_B,
+            event.total_lives_player_A,
+            event.total_gold_player_A,
+            event.total_lives_player_B,
+            event.total_gold_player_B,
         )
 
         if self.player_id == "A":
-            self.game.player_state.my_lives = int(round_result_pb.total_lives_player_A)
-            self.game.player_state.my_gold = int(round_result_pb.total_gold_player_A)
-            self.game.player_state.opponent_lives = int(
-                round_result_pb.total_lives_player_B
-            )
+            self.game.player_state.my_lives = event.total_lives_player_A
+            self.game.player_state.my_gold = event.total_gold_player_A
+            self.game.player_state.opponent_lives = event.total_lives_player_B
         else:
-            self.game.player_state.my_lives = int(round_result_pb.total_lives_player_B)
-            self.game.player_state.my_gold = int(round_result_pb.total_gold_player_B)
-            self.game.player_state.opponent_lives = int(
-                round_result_pb.total_lives_player_A
-            )
+            self.game.player_state.my_lives = event.total_lives_player_B
+            self.game.player_state.my_gold = event.total_gold_player_B
+            self.game.player_state.opponent_lives = event.total_lives_player_A
 
         self.game.player_state.round_result_received = True
         self.game.phase_state.in_combat = False
@@ -116,22 +141,15 @@ class GameScreen(Screen, NetworkListener):
             self.game.phase_state.prep_seconds_total
         )
 
-    def on_tower_placed(self, tower_placed_pb) -> None:
+    def _on_tower_placed(self, event: TowerPlacedEvent) -> None:
+        """Handle tower placed event from EventBus."""
         if not self.game:
             return
 
-        player_id = tower_placed_pb.player_id
-        row = int(tower_placed_pb.tile_row)
-        col = int(tower_placed_pb.tile_col)
-
-        grid = self.game.get_player_grid(player_id)
-        if grid.is_buildable(row, col):
-            grid.place_tower(row, col)
+        grid = self.game.get_player_grid(event.player_id)
+        if grid.is_buildable(event.tile_row, event.tile_col):
+            grid.place_tower(event.tile_row, event.tile_col)
 
         self.game.sim_state.build_controller.spawn_tower(
-            player_id, row, col, "standard"
+            event.player_id, event.tile_row, event.tile_col, event.tower_type
         )
-
-    def on_opponent_disconnected(self) -> None:
-        logger.info("Opponent disconnected. You win!")
-        self.app.switch_screen("VICTORY")

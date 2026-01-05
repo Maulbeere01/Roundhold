@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import pygame
 from td_shared import (
@@ -15,6 +16,9 @@ from ..config import AssetPaths, GameSettings
 from ..display import DisplayManager
 from ..network import NetworkClient
 from .game_states import MapState, PhaseState, PlayerState, SimulationState, UIState
+
+if TYPE_CHECKING:
+    from ..events import EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,7 @@ class GameSimulation:
         settings: GameSettings,
         player_id: PlayerID,
         network_client: NetworkClient,
+        event_bus: EventBus | None = None,
     ):
         # Store dependencies only, no heavy initialization
         # GameFactory.create_game() will handle full initialization
@@ -52,6 +57,7 @@ class GameSimulation:
         self.display_manager = display_manager
         self.player_id: PlayerID = player_id
         self.network_client = network_client
+        self.event_bus = event_bus
 
         # Initialize state containers (will be populated by GameFactory)
         self.map_state = MapState()
@@ -60,7 +66,75 @@ class GameSimulation:
         self.ui_state = UIState()
         self.sim_state = SimulationState()
 
-    # public API
+    # =========================================================================
+    # Convenience properties for backwards compatibility
+    # These delegate to the appropriate state container
+    # =========================================================================
+
+    @property
+    def terrain_map(self):
+        """Access terrain map from map_state."""
+        return self.map_state.terrain_map
+
+    @property
+    def my_gold(self) -> int:
+        """Access player gold from player_state."""
+        return self.player_state.my_gold
+
+    @my_gold.setter
+    def my_gold(self, value: int) -> None:
+        self.player_state.my_gold = value
+
+    @property
+    def my_lives(self) -> int:
+        """Access player lives from player_state."""
+        return self.player_state.my_lives
+
+    @my_lives.setter
+    def my_lives(self, value: int) -> None:
+        self.player_state.my_lives = value
+
+    @property
+    def tower_build_mode(self) -> bool:
+        """Access tower build mode from ui_state."""
+        return self.ui_state.tower_build_mode
+
+    @tower_build_mode.setter
+    def tower_build_mode(self, value: bool) -> None:
+        self.ui_state.tower_build_mode = value
+
+    @property
+    def hover_tile(self) -> tuple[int, int] | None:
+        """Access hover tile from ui_state."""
+        return self.ui_state.hover_tile
+
+    @hover_tile.setter
+    def hover_tile(self, value: tuple[int, int] | None) -> None:
+        self.ui_state.hover_tile = value
+
+    @property
+    def tower_button(self):
+        """Access tower button rect from ui_state."""
+        return self.ui_state.tower_button
+
+    @property
+    def barracks_buttons(self):
+        """Access barracks buttons from ui_state."""
+        return self.ui_state.barracks_buttons
+
+    @property
+    def _local_towers(self):
+        """Access local towers dict from ui_state."""
+        return self.ui_state.local_towers
+
+    @property
+    def render_manager(self):
+        """Access render manager from sim_state."""
+        return self.sim_state.render_manager
+
+    # =========================================================================
+    # Public API
+    # =========================================================================
     def get_player_grid(self, player_id: PlayerID) -> PlacementGrid:
         grid = self.map_state.placement_grid
         if grid is None:
@@ -149,6 +223,11 @@ class GameSimulation:
         """Draw world and HUD onto the render surface."""
         self.sim_state.render_manager.draw(self.map_state.terrain_map)
         self.sim_state.hud_renderer.render(self)
+
+    def cleanup(self) -> None:
+        """Clean up resources when the game simulation is destroyed."""
+        self._clear_local_towers()
+        logger.info("GameSimulation cleaned up")
 
     # helpers for tower rollbacks & send_units
     def _remove_local_tower(self, player_id: str, row: int, col: int) -> None:

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from ..assets import AssetLoader
     from ..config import AssetPaths, GameSettings
     from ..display import DisplayManager
+    from ..events import EventBus
     from ..network import NetworkClient
     from .game_simulation import GameSimulation
 
@@ -46,6 +47,7 @@ class GameFactory:
         settings: GameSettings,
         player_id: PlayerID,
         network_client: NetworkClient,
+        event_bus: EventBus | None = None,
     ) -> GameSimulation:
         """Create and fully initialize a GameSimulation instance.
 
@@ -56,6 +58,7 @@ class GameFactory:
             settings: Game settings
             player_id: Player identifier ("A" or "B")
             network_client: Network client instance
+            event_bus: Central event bus for client communication
 
         Returns:
             Fully initialized GameSimulation instance
@@ -70,6 +73,7 @@ class GameFactory:
             settings=settings,
             player_id=player_id,
             network_client=network_client,
+            event_bus=event_bus,
         )
 
         # Initialize all components
