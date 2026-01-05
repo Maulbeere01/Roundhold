@@ -145,22 +145,28 @@ class EventBus:
         event_type = type(event)
         handlers_called = 0
 
+        # Copy handlers while holding the lock to avoid deadlocks
+        # (handlers may call publish() which would try to acquire the lock)
+        handlers_to_call: list[Callable[[Event], None]] = []
         with self._lock:
             # Get handlers for this specific type and all parent types
             for registered_type, handlers in self._handlers.items():
                 if isinstance(event, registered_type):
-                    for handler in handlers:
-                        try:
-                            handler(event)
-                            handlers_called += 1
-                        except Exception:
-                            logger.exception(
-                                "Error in event handler %s for %s",
-                                handler.__name__
-                                if hasattr(handler, "__name__")
-                                else handler,
-                                event_type.__name__,
-                            )
+                    handlers_to_call.extend(handlers)
+
+        # Call handlers outside the lock to prevent deadlocks
+        for handler in handlers_to_call:
+            try:
+                handler(event)
+                handlers_called += 1
+            except Exception:
+                logger.exception(
+                    "Error in event handler %s for %s",
+                    handler.__name__
+                    if hasattr(handler, "__name__")
+                    else handler,
+                    event_type.__name__,
+                )
 
         if handlers_called == 0:
             logger.debug("No handlers for event %s", event_type.__name__)

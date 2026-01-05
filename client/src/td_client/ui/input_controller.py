@@ -25,7 +25,7 @@ class InputController:
                     game.ui_state.hover_tile = None
                     logger.info("Tower build mode cancelled")
         elif event.type == pygame.MOUSEMOTION:
-            if game.ui_state.tower_build_mode:
-                self.build_controller.handle_mouse_motion(event, game)
+            # Always handle mouse motion for route button hover detection
+            self.build_controller.handle_mouse_motion(event, game)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             self.build_controller.handle_mouse_click(event, game)

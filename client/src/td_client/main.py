@@ -6,7 +6,7 @@ from td_client.assets import AssetLoader
 from td_client.config import AssetPaths, GameSettings
 from td_client.display import DisplayManager
 from td_client.events import EventBus
-from td_client.network import NetworkClient, NetworkEventRouter
+from td_client.network import NetworkClient, NetworkEventRouter, NetworkHandler
 from td_client.screens import (
     GameScreen,
     MenuScreen,
@@ -34,8 +34,9 @@ class GameApp:
         self.event_bus = EventBus()
         self.event_bus.set_main_thread()
 
-        # Network client and event router (publishes to event_bus)
+        # Network client, handler (subscribes to action events), and router (publishes network events)
         self.network_client = NetworkClient()
+        self.network_handler = NetworkHandler(self.network_client, self.event_bus)
         self.router = NetworkEventRouter(self, self.event_bus)
 
         self.screens: dict[str, Screen] = {
@@ -82,6 +83,7 @@ class GameApp:
 
         finally:
             self.event_bus.clear()
+            self.network_handler.cleanup()
             self.display_manager.cleanup()
             self.network_client.close()
 

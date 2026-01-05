@@ -15,6 +15,7 @@ from ..assets import AssetLoader
 from ..config import AssetPaths, GameSettings
 from ..display import DisplayManager
 from ..network import NetworkClient
+from ..events import RequestRoundAckEvent
 from .game_states import MapState, PhaseState, PlayerState, SimulationState, UIState
 
 if TYPE_CHECKING:
@@ -213,10 +214,14 @@ class GameSimulation:
                     "Simulation complete for round %d, sending RoundAck",
                     self.player_state.current_round,
                 )
-                self.network_client.round_ack(
-                    player_id=self.player_id,
-                    round_number=self.player_state.current_round,
-                )
+                # Publish event instead of calling network directly
+                if self.event_bus:
+                    self.event_bus.publish(
+                        RequestRoundAckEvent(
+                            player_id=self.player_id,
+                            round_number=self.player_state.current_round,
+                        )
+                    )
                 self.player_state.round_ack_sent = True
 
     def render(self) -> None:
@@ -229,47 +234,9 @@ class GameSimulation:
         self._clear_local_towers()
         logger.info("GameSimulation cleaned up")
 
-    # helpers for tower rollbacks & send_units
-    def _remove_local_tower(self, player_id: str, row: int, col: int) -> None:
-        self.sim_state.build_controller.remove_tower(player_id, row, col)
-
+    # helpers for tower management
     def _clear_local_towers(self) -> None:
+        """Remove all locally-spawned tower sprites."""
         for sprite in self.ui_state.local_towers.values():
             sprite.kill()
         self.ui_state.local_towers.clear()
-
-    # network callbacks
-    def _on_build_response(
-        self,
-        success: bool,
-        *,
-        row: int,
-        col: int,
-        was_empty: bool,
-        sprite_existed: bool,
-    ) -> None:
-        if success:
-            logger.info("BuildTower succeeded at (%d,%d)", row, col)
-            return
-
-        logger.warning("BuildTower rejected at (%d,%d), rolling back", row, col)
-        tower_cost = int(TOWER_STATS["standard"]["cost"])
-        self.player_state.my_gold += tower_cost
-        my_grid = self.get_player_grid(self.player_id)
-
-        if not sprite_existed:
-            self._remove_local_tower(self.player_id, row, col)
-            logger.info(
-                "Rolled back tower at (%d,%d) - removed sprite we created", row, col
-            )
-
-        if was_empty:
-            my_grid.clear_tower(row, col)
-            logger.info("Rolled back tower at (%d,%d) - field cleared", row, col)
-
-    def _on_send_units_response(self, success: bool, total_gold: int | None) -> None:
-        if success and total_gold is not None:
-            logger.info("SendUnits acknowledged, updating gold to %d", total_gold)
-            self.player_state.my_gold = int(total_gold)
-        elif not success and total_gold is not None:
-            self.player_state.my_gold = int(total_gold)
