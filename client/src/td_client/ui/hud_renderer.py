@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pygame
-from td_shared.game import TILE_SIZE_PX
+from td_shared.game import GAME_PATHS, TILE_SIZE_PX
 
 
 class HUDRenderer:
@@ -10,6 +10,10 @@ class HUDRenderer:
     def render(self, game) -> None:
         surface = game.display_manager.render_surface
         hovered_route = game.ui_state.hovered_route
+        
+        # Render route path highlight if hovering over a route button
+        if hovered_route is not None:
+            self._render_route_highlight(surface, game, hovered_route)
         
         # Basic HUD
         font = pygame.font.Font(None, 28)
@@ -113,3 +117,28 @@ class HUDRenderer:
         game.sim_state.debug_renderer.draw_info_text(
             game.display_manager.render_surface
         )
+
+    def _render_route_highlight(self, surface: pygame.Surface, game, route: int) -> None:
+        """Render a highlight overlay on the tiles of the hovered route."""
+        player_id = game.player_id
+        
+        # Get path positions for this player's route
+        if player_id not in GAME_PATHS or route not in GAME_PATHS[player_id]:
+            return
+        
+        path_tiles = GAME_PATHS[player_id][route]
+        terrain_map = game.map_state.terrain_map
+        
+        # Create a semi-transparent highlight color (yellow-ish glow)
+        highlight_color = (255, 220, 100, 100)  # RGBA with alpha
+        
+        for tile_row, tile_col in path_tiles:
+            tile_x = terrain_map.rect.x + tile_col * TILE_SIZE_PX
+            tile_y = terrain_map.rect.y + tile_row * TILE_SIZE_PX
+            
+            # Create a highlight surface for this tile
+            highlight_surface = pygame.Surface(
+                (TILE_SIZE_PX, TILE_SIZE_PX), pygame.SRCALPHA
+            )
+            highlight_surface.fill(highlight_color)
+            surface.blit(highlight_surface, (tile_x, tile_y))
