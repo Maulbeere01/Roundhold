@@ -21,7 +21,7 @@ class UnitStats(TypedDict):
     cost: int
     health: int
     speed: float
-
+    base_damage: int
 
 class TowerStats(TypedDict):
     cost: int
@@ -35,6 +35,13 @@ UNIT_STATS: dict[str, UnitStats] = {
         "cost": 5,
         "health": 50,
         "speed": 120.0,
+        "base_damage": 1
+    },
+        "pawn": {
+        "cost": 15,
+        "health": 120,
+        "speed": 90.0,
+        "base_damage": 10,
     },
 }
 

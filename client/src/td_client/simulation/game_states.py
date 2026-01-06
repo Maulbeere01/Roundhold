@@ -59,6 +59,8 @@ class UIState:
 
     barracks_buttons: list[pygame.Rect] = None
     tower_button: pygame.Rect | None = None
+    unit_selection_buttons: list[tuple[pygame.Rect, str]] = None # List of (Rect, unit_type)
+    selected_unit_type: str = "standard" # Default to Warrior
     tower_build_mode: bool = False
     hover_tile: tuple[int, int] | None = None
     hovered_route: int | None = None  # Route number (1-5) being hovered, or None
@@ -72,6 +74,8 @@ class UIState:
             self.barracks_buttons = []
         if self.local_towers is None:
             self.local_towers = {}
+        if self.unit_selection_buttons is None:
+            self.unit_selection_buttons = []
 
 
 @dataclass

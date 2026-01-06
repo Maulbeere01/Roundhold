@@ -17,6 +17,9 @@ from td_client.events import (
     GoldChangedEvent,
 )
 
+if TYPE_CHECKING:
+    from ..simulation.game_simulation import GameSimulation
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,7 +67,7 @@ class BuildController:
         mx, my = event.pos
         my_map, my_grid = self._get_my_map_and_grid(game)
 
-        # Check for route button hover FIRST
+        # Check for route button hover
         old_hovered_route = game.ui_state.hovered_route
         new_hovered_route = None
         buttons = game.ui_state.barracks_buttons
@@ -108,10 +111,21 @@ class BuildController:
         # Priority 2: Send units buttons
         for idx, rect in enumerate(game.ui_state.barracks_buttons, start=1):
             if rect.collidepoint(mx, my):
+                # Set click feedback
+                import time
+                game.ui_state.last_clicked_route = idx
+                game.ui_state.click_time = time.time()
                 self._request_send_units(game, idx)
                 return
 
-        # Priority 3: Tower placement (if in build mode)
+         # Priority 2: Unit Selection Buttons (Bottom)
+        for rect, u_type in game.ui_state.unit_selection_buttons:
+            if rect.collidepoint(mx, my):
+                game.ui_state.selected_unit_type = u_type
+                logger.info(f"Selected unit type: {u_type}")
+                return
+
+        # Priority 4: Tower placement (if in build mode)
         if game.ui_state.tower_build_mode:
             self._request_build_tower(game, mx, my)
 
@@ -130,7 +144,8 @@ class BuildController:
 
     def _request_send_units(self, game, route: int) -> None:
         """Request to send units - publishes event, does NOT call network directly."""
-        unit_type_to_send = "standard"
+        unit_type_to_send = game.ui_state.selected_unit_type 
+        
         try:
             unit_cost = int(UNIT_STATS[unit_type_to_send]["cost"])
         except (KeyError, ValueError):

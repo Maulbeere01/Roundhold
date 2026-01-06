@@ -29,6 +29,9 @@ class AssetPaths:
         #UNITS
         self.warrior_blue = self.assets_dir / "Factions/Knights/Troops/Warrior/Blue/Warrior_Blue.png"
         self.warrior_red = self.assets_dir / "Factions/Knights/Troops/Warrior/Red/Warrior_Red.png"
+        
+        self.pawn_blue = self.assets_dir / "Factions/Knights/Troops/Pawn/Blue/Pawn_Blue.png"
+        self.pawn_red = self.assets_dir / "Factions/Knights/Troops/Pawn/Red/Pawn_Red.png"
 
         #TOWERS
         self.tower_blue = self.assets_dir / "Factions/Knights/Buildings/Tower/Tower_Blue.png"

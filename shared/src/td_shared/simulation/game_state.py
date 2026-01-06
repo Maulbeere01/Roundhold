@@ -98,9 +98,9 @@ class GameState:
         for unit in self.active_units:
             if unit.has_reached_base():
                 if unit.player_id == "A":
-                    self.lives_lost_player_B += 1
+                    self.lives_lost_player_B += unit.base_damage
                 else:
-                    self.lives_lost_player_A += 1
+                    self.lives_lost_player_A += unit.base_damage
 
         # Remove units that reached base or died
         self.active_units = [u for u in self.active_units if u.is_active]

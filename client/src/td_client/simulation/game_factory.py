@@ -199,3 +199,20 @@ class GameFactory:
         game.ui_state.tower_build_mode = False
         game.ui_state.hover_tile = None
         game.ui_state.local_towers = {}
+
+        unit_types = ["standard", "pawn"]
+        btn_width = 100
+        btn_height = 50
+        gap = 20
+        
+        total_width = (len(unit_types) * btn_width) + ((len(unit_types) - 1) * gap)
+        start_x = (game.display_manager.screen_width - total_width) // 2
+        y_pos = game.display_manager.screen_height - 70 # Near bottom
+        
+        game.ui_state.unit_selection_buttons = []
+        for i, u_type in enumerate(unit_types):
+            x = start_x + i * (btn_width + gap)
+            rect = pygame.Rect(x, y_pos, btn_width, btn_height)
+            game.ui_state.unit_selection_buttons.append((rect, u_type))
+            
+        game.ui_state.selected_unit_type = "standard"

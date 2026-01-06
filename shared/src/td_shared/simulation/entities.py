@@ -63,6 +63,7 @@ class SimUnit(SimEntity):
         self.max_health = stats["health"]
         self.health = self.max_health
         self.speed = stats["speed"]
+        self.base_damage = stats.get("base_damage", 1) 
         self.path = path_pixels
         self.current_path_index = 0
         self.sim_dt = sim_dt

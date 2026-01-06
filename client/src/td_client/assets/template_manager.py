@@ -51,18 +51,48 @@ class TemplateManager:
         """Create and load animation frames for a unit type."""
 
         frame_count = 6
-
-        # Tiny Swords sprite sheet mapping (based on the asset layout):
-        # Row 0 = Idle
-        # Row 1 = Run
-        # Row 2 = Attack Side 1 (Right)
-        # Row 4 = Attack Down 1
-        # Row 6 = Attack Up 1
-
-        if player_id == "A":
-            path = self.asset_loader.paths.warrior_blue
+        path = None
+        
+        # 1. Determine Path based on Type and Player
+        if unit_type == "standard":  # Warrior
+            if player_id == "A":
+                path = self.asset_loader.paths.warrior_blue
+            else:
+                path = self.asset_loader.paths.warrior_red
+            
+            # Warrior Mapping (Standard Tiny Swords)
+            row_idle = 0
+            row_run = 1
+            row_atk_side = 2
+            row_atk_down = 4
+            row_atk_up = 6
+            
+        elif unit_type == "pawn":  # Pawn
+            if player_id == "A":
+                path = self.asset_loader.paths.pawn_blue
+            else:
+                path = self.asset_loader.paths.pawn_red
+            
+            # Pawn Mapping (Based on sprite sheet layout)
+            # Row 0: Idle/Walk 1 -> We use as Idle
+            # Row 1: Walk 2      -> We use as Run
+            # Row 2: Attack 1    -> We use for Attack
+            row_idle = 0
+            row_run = 1
+            row_atk_side = 2
+            row_atk_down = 2  # Pawn doesn't have specific vertical attacks, reuse Side
+            row_atk_up = 2
         else:
-            path = self.asset_loader.paths.warrior_red
+            # Unknown unit type - use standard warrior as fallback
+            if player_id == "A":
+                path = self.asset_loader.paths.warrior_blue
+            else:
+                path = self.asset_loader.paths.warrior_red
+            row_idle = 0
+            row_run = 1
+            row_atk_side = 2
+            row_atk_down = 4
+            row_atk_up = 6
 
         # Create fallback animation (used if loading fails)
         fallback = pygame.Surface((40, 40))
@@ -76,32 +106,32 @@ class TemplateManager:
         }
 
         # If the asset path does not exist, return fallback animations
-        if not path.exists():
+        if not path or not path.exists():
             return animations
 
         try:
             # Load all required animation rows from the sprite sheet
             animations["idle"] = self.asset_loader.load_grid_row(
-                path, row_index=0, frame_count=frame_count, scale_factor=0.5
+                path, row_index=row_idle, frame_count=frame_count, scale_factor=0.5
             )
             animations["run"] = self.asset_loader.load_grid_row(
-                path, row_index=1, frame_count=frame_count, scale_factor=0.5
+                path, row_index=row_run, frame_count=frame_count, scale_factor=0.5
             )
             animations["atk_side"] = self.asset_loader.load_grid_row(
-                path, row_index=2, frame_count=frame_count, scale_factor=0.5
+                path, row_index=row_atk_side, frame_count=frame_count, scale_factor=0.5
             )
             animations["atk_down"] = self.asset_loader.load_grid_row(
-                path, row_index=4, frame_count=frame_count, scale_factor=0.5
+                path, row_index=row_atk_down, frame_count=frame_count, scale_factor=0.5
             )
             animations["atk_up"] = self.asset_loader.load_grid_row(
-                path, row_index=6, frame_count=frame_count, scale_factor=0.5
+                path, row_index=row_atk_up, frame_count=frame_count, scale_factor=0.5
             )
             return animations
 
         except Exception as e:
             print(f"Error loading unit assets from {path}: {e}")
             return animations
-
+        
     def get_water_tile(self, tile_size: int) -> pygame.Surface:
         water_image = self.asset_loader.load_image(self.asset_loader.paths.water)
         original_width, original_height = water_image.get_size()
