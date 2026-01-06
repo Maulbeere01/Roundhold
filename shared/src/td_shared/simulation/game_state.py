@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ..game.protocol import PlayerID, SimulationData
+from ..game.game_balance import PLAYER_LIVES
 from .base import calculate_sim_dt
 from .entities import SimTower, SimUnit
 
@@ -41,6 +42,10 @@ class GameState:
 
         # Create units (will spawn based on spawn_tick)
         self.units: list[SimUnit] = []
+        
+        # Track units per route for offset calculation
+        route_unit_counts: dict[tuple[str, int], int] = {}
+        
         for unit_id, unit_data in enumerate(simulation_data["units"]):
             unit = SimUnit(
                 entity_id=unit_id,
@@ -50,6 +55,18 @@ class GameState:
                 sim_dt=self.sim_dt,
             )
 
+            # Apply spawn offset based on queue position for this route
+            route_key = (unit_data["player_id"], unit_data["route"])
+            idx = route_unit_counts.get(route_key, 0)
+            route_unit_counts[route_key] = idx + 1
+            
+            # Calculate offset - spread in grid pattern matching preview
+            col_idx = idx % 3
+            row_idx = idx // 3
+            unit.spawn_offset_x = (col_idx - 1) * 20.0
+            unit.spawn_offset_y = -row_idx * 24.0 - 30.0
+            unit.ease_progress = 0.0  # Start easing in
+            
             # Units start inactive until spawn_tick
             unit.is_active = False
             self.units.append(unit)
@@ -93,6 +110,18 @@ class GameState:
         for tower in self.towers:
             if tower.is_active:
                 tower.update(self.active_units, self)
+
+        # Deactivate a player's towers once their lives are depleted (castle destroyed)
+        if self.lives_lost_player_A >= PLAYER_LIVES:
+            for tower in self.towers:
+                if tower.player_id == "A":
+                    tower.is_active = False
+                    tower.last_shot_target = None
+        if self.lives_lost_player_B >= PLAYER_LIVES:
+            for tower in self.towers:
+                if tower.player_id == "B":
+                    tower.is_active = False
+                    tower.last_shot_target = None
 
         # Check for units that reached base and count lives lost
         for unit in self.active_units:

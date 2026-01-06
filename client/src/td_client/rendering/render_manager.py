@@ -257,7 +257,7 @@ class RenderManager:
             entity.x + self.terrain_map.rect.x, entity.y + self.terrain_map.rect.y
         )
 
-    def sync_sprites_to_state(self, game_state: GameState) -> None:
+    def sync_sprites_to_state(self, game_state: GameState, ui_state=None) -> None:
         """Synchronize sprite positions and state with simulation.
 
         This is the core method that bridges the simulation and rendering:
@@ -268,8 +268,13 @@ class RenderManager:
 
         Args:
             game_state: Current simulation state
+            ui_state: Optional UI state for preview sprite management
         """
 
+        # Track which units we've seen spawn to remove their preview sprites
+        if not hasattr(self, '_spawned_unit_ids'):
+            self._spawned_unit_ids = set()
+        
         # Sync units
         for unit in game_state.units:
             entity_id = unit.entity_id
@@ -281,6 +286,24 @@ class RenderManager:
                     self.sprite_factory.remove_unit_sprite(entity_id)
                     logger.debug(f"Removed inactive unit sprite {entity_id}")
                 continue
+            
+            # When a unit first spawns (becomes active), remove its corresponding preview sprite
+            # Since units spawn in order, we remove the first preview for this route/player
+            if entity_id not in self._spawned_unit_ids:
+                self._spawned_unit_ids.add(entity_id)
+                
+                if ui_state is not None and hasattr(ui_state, 'route_preview_sprites'):
+                    # Find the first preview sprite matching this unit's route and player
+                    for sprite in list(ui_state.route_preview_sprites):
+                        if (hasattr(sprite, '_preview_route') and 
+                            hasattr(sprite, '_preview_player') and
+                            sprite._preview_route == unit.route and
+                            sprite._preview_player == unit.player_id):
+                            sprite.kill()
+                            self.animation_manager.unregister(sprite)
+                            ui_state.route_preview_sprites.remove(sprite)
+                            logger.debug(f"Removed preview sprite for spawning unit {entity_id} (route {unit.route})")
+                            break
 
             # Translate local simulation coordinates to global screen coordinates
             render_pos = self._sim_to_screen_pos(unit)
@@ -293,6 +316,9 @@ class RenderManager:
                     x=render_pos.x,
                     y=render_pos.y,
                 )
+                if hasattr(sprite, "update_health"):
+                    sprite.update_health(unit.health, unit.max_health, ui_state)
+                    
                 logger.debug(
                     f"Created unit sprite {entity_id} (player={unit.player_id}) at ({render_pos.x}, {render_pos.y})"
                 )
@@ -300,9 +326,28 @@ class RenderManager:
                 # Update existing sprite position
                 sprite = self.unit_sprites[entity_id]
                 sprite.set_position(render_pos.x, render_pos.y)
+                if hasattr(sprite, "update_health"):
+                    sprite.update_health(unit.health, unit.max_health, ui_state)
 
         # Sync towers
         for tower in game_state.towers:
+            # --- HANDLE BASE DEFENSE TOWERS ---
+            if tower.tower_type == "castle_archer":
+                # Don't create a sprite, find the existing castle
+                target_sprite = self.castle_A_sprite if tower.player_id == "A" else self.castle_B_sprite
+                
+                # Update aiming based on ACTUAL simulation target
+                if hasattr(target_sprite, "update_facing"):
+                    if tower.last_shot_target:
+                        class Dummy: pass
+                        d = Dummy()
+                        d.x, d.y = tower.last_shot_target
+                        target_screen_pos = self._sim_to_screen_pos(d)
+                        target_sprite.update_facing(target_screen_pos.x, target_screen_pos.y)
+                    else:
+                        target_sprite.reset_to_idle()
+                continue
+            
             entity_id = tower.entity_id
 
             # Check if tower is active
@@ -342,6 +387,37 @@ class RenderManager:
                 else:
                     sprite.reset_to_idle()
 
+        self._update_castle_aiming(game_state)
+
+    def _update_castle_aiming(self, game_state: GameState) -> None:
+        """Update castle archer facing based on the actual castle tower shot target."""
+
+        def get_castle_tower(player_id: str):
+            for tower in game_state.towers:
+                if tower.tower_type == "castle_archer" and tower.player_id == player_id:
+                    return tower
+            return None
+
+        def update_single_castle(castle_sprite, player_id: str):
+            if not getattr(castle_sprite, "archer_alive", False):
+                return
+
+            tower = get_castle_tower(player_id)
+            if tower and tower.last_shot_target and tower.shoot_anim_timer > 0:
+                # Use the authoritative target from the sim to avoid jitter when units are far
+                class Dummy: pass
+                d = Dummy()
+                d.x, d.y = tower.last_shot_target
+                target_screen_pos = self._sim_to_screen_pos(d)
+                castle_sprite.update_facing(target_screen_pos.x, target_screen_pos.y)
+            else:
+                castle_sprite.reset_to_idle()
+
+        if hasattr(self, 'castle_A_sprite'):
+            update_single_castle(self.castle_A_sprite, "A")
+        if hasattr(self, 'castle_B_sprite'):
+            update_single_castle(self.castle_B_sprite, "B")
+
     def _create_static_castles(
         self, center_x: int, center_y: int, map_width: int
     ) -> None:
@@ -350,27 +426,66 @@ class RenderManager:
         (
             castle_blue_image,
             castle_red_image,
-            self.castle_destroyed_image,  # Store this for later use
+            self.castle_destroyed_image,
         ) = self.template_manager.get_castle_images(self.settings)
 
+        # Fetch Archer Animations
+        archer_anims_A = self.template_manager.get_unit_template("archer", "A")
+        archer_anims_B = self.template_manager.get_unit_template("archer", "B")
+
+        # Create Castles as MannedTowerSprite
         # Player A castle (Blue/Left)
-        self.castle_A_sprite = BuildingSprite(
-            center_x - map_width // 2 + 100,
-            center_y,
-            castle_blue_image,
+        self.castle_A_sprite = MannedTowerSprite(
+            x=center_x - map_width // 2 + 100,
+            y=center_y,
+            image=castle_blue_image,
+            archer_anims=archer_anims_A,
+            player_id="A",
+            archer_offset_y=-50 # Higher offset for castle (adjust if needed)
         )
+        
         # Player B castle (Red/Right)
-        self.castle_B_sprite = BuildingSprite(
-            center_x + map_width // 2 - 100,
-            center_y,
-            castle_red_image,
+        self.castle_B_sprite = MannedTowerSprite(
+            x=center_x + map_width // 2 - 100,
+            y=center_y,
+            image=castle_red_image,
+            archer_anims=archer_anims_B,
+            player_id="B",
+            archer_offset_y=-50
         )
 
+        # Add to groups
         self.buildings.add(self.castle_A_sprite)
         self.buildings.add(self.castle_B_sprite)
+        
+        # Register animations so they idle/breathe
+        self.animation_manager.register(self.castle_A_sprite)
+        self.animation_manager.register(self.castle_B_sprite)
 
-    # Handle image swap
     def destroy_castle(self, player_id: str) -> None:
+        """Swaps the castle sprite to the destroyed version and kills archer."""
+        target_sprite = (
+            self.castle_A_sprite if player_id == "A" else self.castle_B_sprite
+        )
+
+        # Only update if it hasn't been destroyed yet
+        if target_sprite.image != self.castle_destroyed_image:
+            # Trigger visual effect
+            if isinstance(target_sprite, MannedTowerSprite):
+                archer_pos = target_sprite.kill_archer()
+                if archer_pos:
+                    # Spawn dust/explosion at archer position
+                    self.sprite_factory.create_effect(archer_pos[0], archer_pos[1], "spawn_dust")
+            
+            # Swap Image
+            old_midbottom = target_sprite.rect.midbottom
+            target_sprite.image = self.castle_destroyed_image
+            target_sprite.rect = target_sprite.image.get_rect(midbottom=old_midbottom)
+            
+            # Stop animating this castle
+            self.animation_manager.unregister(target_sprite)
+            
+            logger.info(f"Visuals: Castle {player_id} destroyed.")
         """Swaps the castle sprite to the destroyed version."""
         target_sprite = (
             self.castle_A_sprite if player_id == "A" else self.castle_B_sprite
@@ -463,3 +578,12 @@ class RenderManager:
 
         # Update sprite-specific logic (e.g., movement for units)
         self.units.update(dt)
+        
+        # Update buildings (for hit flash effects)
+        self.buildings.update(dt)
+        
+        # Also update castle sprites directly if they exist
+        if hasattr(self, 'castle_A_sprite') and self.castle_A_sprite:
+            self.castle_A_sprite.update(dt)
+        if hasattr(self, 'castle_B_sprite') and self.castle_B_sprite:
+            self.castle_B_sprite.update(dt)

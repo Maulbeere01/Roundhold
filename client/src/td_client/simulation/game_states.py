@@ -67,6 +67,13 @@ class UIState:
     last_clicked_route: int | None = None  # Last clicked route for visual feedback
     click_time: float = 0.0  # Time when route was last clicked
     local_towers: dict[tuple[str, int, int], BuildingSprite] = None
+    tower_button_hovered: bool = False
+    route_unit_previews: dict[int, list[str]] | None = None
+    route_preview_sprites: list = None
+    route_preview_sprites: list = None
+    floating_gold_texts: list = None  # List of floating gold change indicators
+    gold_display_scale: float = 1.0  # Scale pulse for gold display
+    floating_damage_texts: list = None  # List of floating damage indicators
 
     def __post_init__(self):
         """Initialize mutable defaults."""
@@ -76,6 +83,16 @@ class UIState:
             self.local_towers = {}
         if self.unit_selection_buttons is None:
             self.unit_selection_buttons = []
+        if self.route_unit_previews is None:
+            self.route_unit_previews = {}
+        if self.route_preview_sprites is None:
+            self.route_preview_sprites = []
+        if self.route_preview_sprites is None:
+            self.route_preview_sprites = []
+        if self.floating_gold_texts is None:
+            self.floating_gold_texts = []
+        if self.floating_damage_texts is None:
+            self.floating_damage_texts = []
 
 
 @dataclass

@@ -1,6 +1,5 @@
 from typing import Dict, List
 import pygame
-import random
 
 from .base import YSortableSprite
 from .animated import AnimatedSprite
@@ -11,8 +10,6 @@ class BuildingSprite(YSortableSprite):
     Buildings are static structures that do not move or animate.
     Position is set via rect.midbottom for correct ground reference.
     """
-
-    HIT_FLASH_TIME = 0.3  # seconds of flash after taking damage
 
     def __init__(
         self,
@@ -28,7 +25,6 @@ class BuildingSprite(YSortableSprite):
         super().__init__(x, y, image, entity_id)
         self._range_surface: pygame.Surface | None = None
         self._range_rect: pygame.Rect | None = None
-        self.hit_flash_timer: float = 0.0
 
         if range_px > 0:
             self._create_range_indicator(
@@ -63,32 +59,6 @@ class BuildingSprite(YSortableSprite):
         if self._range_surface and self._range_rect:
             return self._range_surface, self._range_rect
         return None
-
-    def trigger_hit_effect(self):
-        """Trigger the red flash and shake effect when building takes damage."""
-        self.hit_flash_timer = self.HIT_FLASH_TIME
-
-    def update(self, dt: float):
-        """Update building state (mainly hit effect timer)."""
-        if self.hit_flash_timer > 0:
-            self.hit_flash_timer = max(0.0, self.hit_flash_timer - dt)
-
-    def draw_on(self, surface: pygame.Surface):
-        """Draw building with hit effect if active."""
-        jitter = 0
-        if self.hit_flash_timer > 0:
-            jitter = max(2, int(4 * (self.hit_flash_timer / self.HIT_FLASH_TIME)))
-        offset_x = random.randint(-jitter, jitter) if jitter else 0
-        offset_y = random.randint(-jitter, jitter) if jitter else 0
-
-        dest_rect = self.rect.move(offset_x, offset_y)
-        surface.blit(self.image, dest_rect)
-
-        # Apply red flash overlay
-        if self.hit_flash_timer > 0:
-            flash = self.image.copy()
-            flash.fill((200, 30, 30), special_flags=pygame.BLEND_RGB_ADD)
-            surface.blit(flash, dest_rect)
 
 
 class MannedTowerSprite(BuildingSprite):
@@ -194,32 +164,10 @@ class MannedTowerSprite(BuildingSprite):
         return self.archer.rect.center
 
     def draw_on(self, surface: pygame.Surface):
-        """Draw tower then archer with hit effect."""
-        # Apply hit shake to the whole building
-        jitter = 0
-        if self.hit_flash_timer > 0:
-            jitter = max(2, int(4 * (self.hit_flash_timer / self.HIT_FLASH_TIME)))
-        offset_x = random.randint(-jitter, jitter) if jitter else 0
-        offset_y = random.randint(-jitter, jitter) if jitter else 0
-
-        dest_rect = self.rect.move(offset_x, offset_y)
-        surface.blit(self.image, dest_rect)
-
-        # Apply red flash overlay to tower
-        if self.hit_flash_timer > 0:
-            flash = self.image.copy()
-            flash.fill((200, 30, 30), special_flags=pygame.BLEND_RGB_ADD)
-            surface.blit(flash, dest_rect)
-
+        """Draw tower then archer."""
+        surface.blit(self.image, self.rect)
         # Draw archer only if alive
         if self.archer_alive:
-            # Ensure archer stays anchored to its calculated position, with same jitter
-            archer_rect = self.archer.image.get_rect(midbottom=self.archer.rect.midbottom)
-            archer_rect = archer_rect.move(offset_x, offset_y)
-            surface.blit(self.archer.image, archer_rect)
-            
-            # Apply red flash to archer too
-            if self.hit_flash_timer > 0:
-                archer_flash = self.archer.image.copy()
-                archer_flash.fill((200, 30, 30), special_flags=pygame.BLEND_RGB_ADD)
-                surface.blit(archer_flash, archer_rect)
+            # Ensure archer stays anchored to its calculated position
+            self.archer.rect = self.archer.image.get_rect(midbottom=self.archer.rect.midbottom)
+            surface.blit(self.archer.image, self.archer.rect)

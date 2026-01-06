@@ -86,6 +86,13 @@ class BuildController:
         old_hover = game.ui_state.hover_tile
         new_hover = None
 
+        # Track tower button hover for better visual feedback
+        game.ui_state.tower_button_hovered = (
+            game.ui_state.tower_button.collidepoint(mx, my)
+            if game.ui_state.tower_button
+            else False
+        )
+
         if my_map.rect.collidepoint(mx, my):
             local_x = mx - my_map.rect.x
             local_y = my - my_map.rect.y
@@ -162,6 +169,17 @@ class BuildController:
         # Optimistic gold deduction
         game.player_state.my_gold -= unit_cost
         
+        # Trigger gold change animation
+        import time
+        gold_text_x = 150 if game.player_id == "A" else game.display_manager.screen_width - 150
+        game.ui_state.floating_gold_texts.append({
+            'amount': -unit_cost,
+            'x': gold_text_x,
+            'y': 30,
+            'start_time': time.time()
+        })
+        game.ui_state.gold_display_scale = 1.3  # Pulse effect
+        
         logger.info(
             f"Barracks button clicked: route {route}. Optimistically deducted {unit_cost} gold."
         )
@@ -178,6 +196,8 @@ class BuildController:
 
         # Publish request event - NetworkHandler will handle the network call
         if self.event_bus:
+            # Track locally for UI preview
+            game.ui_state.route_unit_previews.setdefault(route, []).append(unit_type_to_send)
             self.event_bus.publish(
                 RequestSendUnitsEvent(
                     player_id=game.player_id,
@@ -220,6 +240,18 @@ class BuildController:
 
         # Optimistic updates
         game.player_state.my_gold -= tower_cost
+        
+        # Trigger gold change animation
+        import time
+        gold_text_x = 150 if game.player_id == "A" else game.display_manager.screen_width - 150
+        game.ui_state.floating_gold_texts.append({
+            'amount': -tower_cost,
+            'x': gold_text_x,
+            'y': 30,
+            'start_time': time.time()
+        })
+        game.ui_state.gold_display_scale = 1.3  # Pulse effect
+        
         my_grid.place_tower(row, col)
         sprite_created = self.spawn_tower(game.player_id, row, col, "standard")
         
@@ -272,6 +304,17 @@ class BuildController:
         tower_cost = int(TOWER_STATS["standard"]["cost"])
         self.game.player_state.my_gold += tower_cost
         
+        # Trigger gold gain animation (refund)
+        import time
+        gold_text_x = 150 if self.game.player_id == "A" else self.game.display_manager.screen_width - 150
+        self.game.ui_state.floating_gold_texts.append({
+            'amount': tower_cost,
+            'x': gold_text_x,
+            'y': 30,
+            'start_time': time.time()
+        })
+        self.game.ui_state.gold_display_scale = 1.3  # Pulse effect
+        
         if self.event_bus:
             self.event_bus.publish(
                 GoldChangedEvent(
@@ -312,6 +355,11 @@ class BuildController:
             logger.warning("SendUnits rejected, syncing gold to %d", event.total_gold)
             old_gold = self.game.player_state.my_gold
             self.game.player_state.my_gold = event.total_gold
+            # Roll back last preview for the route if we added one
+            if event.route is not None:
+                previews = self.game.ui_state.route_unit_previews.get(event.route)
+                if previews:
+                    previews.pop()
             
             if self.event_bus:
                 self.event_bus.publish(

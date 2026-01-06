@@ -146,6 +146,16 @@ class GameSimulation:
     def load_round_start(self, round_start: RoundStartData) -> None:
         self.player_state.current_round += 1
         logger.info("Loading RoundStart for round %d", self.player_state.current_round)
+        
+        # DON'T clear preview sprites yet - they'll fade out as units spawn
+        # Just clear the queue data, not the actual sprites
+        self.ui_state.route_unit_previews.clear()
+        # DON'T reset _last_preview_state - this would trigger HUD to clear sprites
+        
+        # Reset the tracking for spawned units so previews can be cleared properly
+        if hasattr(self.sim_state.render_manager, '_spawned_unit_ids'):
+            self.sim_state.render_manager._spawned_unit_ids.clear()
+        
         self._clear_local_towers()
         self.player_state.round_result_received = False
         self.player_state.round_ack_sent = False
@@ -172,7 +182,7 @@ class GameSimulation:
 
         state = self.sim_state.wave_simulator.game_state
         if state:
-            self.sim_state.render_manager.sync_sprites_to_state(state)
+            self.sim_state.render_manager.sync_sprites_to_state(state, self.ui_state)
 
             if not self.player_state.round_result_received:
                 if self.player_id == "A":
@@ -189,6 +199,38 @@ class GameSimulation:
                     opp_vis = self.player_state.round_base_opponent_lives - int(
                         getattr(state, "lives_lost_player_A", 0)
                     )
+                
+                # Detect damage and trigger castle hit effects (only if castle still alive)
+                if my_vis < self.player_state.my_lives and my_vis > 0:
+                    # My castle was hit but still alive
+                    castle = self.sim_state.render_manager.castle_A_sprite if self.player_id == "A" else self.sim_state.render_manager.castle_B_sprite
+                    if castle and hasattr(castle, 'trigger_hit_effect'):
+                        castle.trigger_hit_effect()
+                        # Spawn damage text at castle
+                        damage = self.player_state.my_lives - my_vis
+                        import time
+                        self.ui_state.floating_damage_texts.append({
+                            'amount': damage,
+                            'x': castle.rect.centerx,
+                            'y': castle.rect.top - 20,
+                            'start_time': time.time()
+                        })
+                
+                if opp_vis < self.player_state.opponent_lives and opp_vis > 0:
+                    # Opponent castle was hit but still alive
+                    castle = self.sim_state.render_manager.castle_B_sprite if self.player_id == "A" else self.sim_state.render_manager.castle_A_sprite
+                    if castle and hasattr(castle, 'trigger_hit_effect'):
+                        castle.trigger_hit_effect()
+                        # Spawn damage text at castle
+                        damage = self.player_state.opponent_lives - opp_vis
+                        import time
+                        self.ui_state.floating_damage_texts.append({
+                            'amount': damage,
+                            'x': castle.rect.centerx,
+                            'y': castle.rect.top - 20,
+                            'start_time': time.time()
+                        })
+                
                 self.player_state.my_lives = max(0, my_vis)
                 self.player_state.opponent_lives = max(0, opp_vis)
 

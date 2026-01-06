@@ -152,6 +152,17 @@ class GameScreen(Screen):
             self.game.phase_state.prep_seconds_remaining = (
                 self.game.phase_state.prep_seconds_total
             )
+            
+            # Clear preview sprites when returning to preparation phase
+            for sprite in self.game.ui_state.route_preview_sprites:
+                sprite.kill()
+                self.game.sim_state.render_manager.animation_manager.unregister(sprite)
+            self.game.ui_state.route_preview_sprites.clear()
+            if hasattr(self.game.ui_state, '_last_preview_state'):
+                self.game.ui_state._last_preview_state = {}
+            # Reset spawned unit tracking for next round
+            if hasattr(self.game.sim_state.render_manager, '_spawned_unit_ids'):
+                self.game.sim_state.render_manager._spawned_unit_ids.clear()
 
     def _on_tower_placed(self, event: TowerPlacedEvent) -> None:
         """Handle tower placed event from EventBus."""

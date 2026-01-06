@@ -37,7 +37,17 @@ class HUDRenderer:
 
         # 2. Basic HUD (Gold and Lives)
         font = pygame.font.Font(None, 28)
-        my_hud = font.render(
+        
+        # Animate gold display scale (pulse effect)
+        target_scale = 1.0
+        if game.ui_state.gold_display_scale > 1.0:
+            game.ui_state.gold_display_scale = max(1.0, game.ui_state.gold_display_scale - 3.0 * (1/60))  # Decay over time
+        game.ui_state.gold_display_scale += (target_scale - game.ui_state.gold_display_scale) * 0.15
+        
+        # Render gold text with scale effect
+        gold_font_size = int(28 * game.ui_state.gold_display_scale)
+        gold_font = pygame.font.Font(None, gold_font_size)
+        my_hud = gold_font.render(
             f"Gold: {game.player_state.my_gold}   Lives: {game.player_state.my_lives}",
             True,
             (255, 255, 255),
@@ -54,9 +64,18 @@ class HUDRenderer:
             surface.blit(my_hud, (20, 20))
             right_x = game.display_manager.screen_width - 20 - opp_hud.get_width()
             surface.blit(opp_hud, (right_x, 20))
+        
+        # Render floating gold change texts
+        self._render_floating_gold_texts(surface, game)
+        
+        # Render floating damage texts
+        self._render_floating_damage_texts(surface, game)
 
-        # 3. Send units buttons
+        # 3. Send units buttons with route preview of selected unit type
         current_time = time.time()
+        selected_type = game.ui_state.selected_unit_type
+        selected_cost = UNIT_STATS.get(selected_type, {}).get("cost", "?")
+
         for i, rect in enumerate(game.ui_state.barracks_buttons, start=1):
             is_hovered = hovered_route == i
             is_recently_clicked = (
@@ -64,29 +83,62 @@ class HUDRenderer:
                 and current_time - game.ui_state.click_time < 0.5
             )
 
+            # Dynamically expand draw rect to fit preview text on hover
+            draw_rect = rect.copy()
+            if is_hovered:
+                label = f"Route {i}"
+                preview_text = f"Send: {selected_type.capitalize()} (${selected_cost})"
+                label_width = font.size(label)[0]
+                preview_width = font.size(preview_text)[0]
+                needed_w = max(label_width, preview_width) + 20
+                if needed_w > draw_rect.w:
+                    draw_rect.w = needed_w
+                    draw_rect.centerx = rect.centerx
+
             if is_recently_clicked:
                 btn_color = (0, 255, 0)
             elif is_hovered:
-                btn_color = (100, 100, 180)
+                btn_color = (90, 120, 200)
             else:
                 btn_color = (60, 60, 120)
 
-            pygame.draw.rect(surface, btn_color, rect, border_radius=6)
+            pygame.draw.rect(surface, btn_color, draw_rect, border_radius=6)
             if is_hovered:
                 pygame.draw.rect(
-                    surface, (150, 150, 255), rect, width=2, border_radius=6
+                    surface, (170, 190, 255), draw_rect, width=2, border_radius=6
                 )
-            label = font.render(f"Send route {i}", True, (255, 255, 255))
-            label_rect = label.get_rect(center=rect.center)
+            label = font.render(f"Route {i}", True, (255, 255, 255))
+            label_rect = label.get_rect(center=(draw_rect.centerx, draw_rect.centery - 6))
             surface.blit(label, label_rect)
 
-        # 4. Tower build button
-        tower_btn_color = (
-            (120, 200, 120) if game.ui_state.tower_build_mode else (80, 120, 80)
-        )
+            # Preview the currently selected unit type & cost on hover
+            if is_hovered:
+                preview = font.render(
+                    f"Send: {selected_type.capitalize()} (${selected_cost})",
+                    True,
+                    (255, 230, 180),
+                )
+                prev_rect = preview.get_rect(center=(draw_rect.centerx, draw_rect.centery + 10))
+                surface.blit(preview, prev_rect)
+
+        # Draw reserved/queued unit previews at route starts
+        self._render_route_unit_previews(surface, game)
+
+        # 4. Tower build button with hover feedback
+        tower_hover = getattr(game.ui_state, "tower_button_hovered", False)
+        tower_active = game.ui_state.tower_build_mode
+        base_color = (80, 120, 80)
+        hover_color = (110, 170, 110)
+        active_color = (140, 210, 140)
+        tower_btn_color = active_color if tower_active else (hover_color if tower_hover else base_color)
+
         pygame.draw.rect(
-            surface, tower_btn_color, game.ui_state.tower_button, border_radius=8
+            surface, tower_btn_color, game.ui_state.tower_button, border_radius=10
         )
+        if tower_hover:
+            pygame.draw.rect(
+                surface, (200, 255, 200), game.ui_state.tower_button, width=2, border_radius=10
+            )
         tower_label = font.render("Tower", True, (255, 255, 255))
         tower_label_rect = tower_label.get_rect(
             center=game.ui_state.tower_button.center
@@ -202,6 +254,96 @@ class HUDRenderer:
             highlight_surface.fill(highlight_color)
             surface.blit(highlight_surface, (tile_x, tile_y))
 
+    def _render_route_unit_previews(self, surface: pygame.Surface, game) -> None:
+        """Render actual unit sprites at the start of each route to show queued units."""
+        # Only create/update preview sprites during preparation phase
+        # During combat, previews are managed by render_manager (removed as units spawn)
+        if not game.phase_state.in_preparation:
+            return
+            
+        player_id = game.player_id
+        my_map = game.map_state.terrain_map
+        if not my_map:
+            return
+
+        previews = getattr(game.ui_state, "route_unit_previews", {}) or {}
+        
+        # Track what we need vs what we have
+        if not hasattr(game.ui_state, '_last_preview_state'):
+            game.ui_state._last_preview_state = {}
+        
+        # Check if previews changed since last frame
+        if game.ui_state._last_preview_state == previews:
+            return  # No changes, don't recreate sprites
+        
+        # Instead of clearing ALL sprites, only remove/add what changed
+        old_state = game.ui_state._last_preview_state
+        
+        # Find routes/units that were removed or changed count
+        for route in list(old_state.keys()):
+            if route not in previews or len(previews.get(route, [])) < len(old_state[route]):
+                # Remove preview sprites for this route
+                for sprite in list(game.ui_state.route_preview_sprites):
+                    if hasattr(sprite, '_preview_route') and sprite._preview_route == route:
+                        sprite.kill()
+                        game.sim_state.render_manager.animation_manager.unregister(sprite)
+                        game.ui_state.route_preview_sprites.remove(sprite)
+        
+        # Store current state for next frame comparison
+        game.ui_state._last_preview_state = {k: list(v) for k, v in previews.items()}
+        
+        if not previews:
+            return
+
+        template_manager = game.sim_state.render_manager.template_manager
+        
+        for route, units in previews.items():
+            if player_id not in GAME_PATHS or route not in GAME_PATHS[player_id]:
+                continue
+            if not units:
+                continue
+
+            tile_row, tile_col = GAME_PATHS[player_id][route][0]
+            base_x = my_map.rect.x + tile_col * TILE_SIZE_PX + TILE_SIZE_PX / 2
+            base_y = my_map.rect.y + tile_row * TILE_SIZE_PX + TILE_SIZE_PX / 2
+
+            # Count how many preview sprites already exist for this route
+            existing_count = sum(1 for s in game.ui_state.route_preview_sprites 
+                               if hasattr(s, '_preview_route') and s._preview_route == route)
+            
+            # Only create sprites for NEW units (beyond existing_count)
+            for idx in range(existing_count, len(units)):
+                u_type = units[idx]
+                
+                # Create offset position - spread units in a grid pattern
+                col_idx = idx % 3
+                row_idx = idx // 3
+                dx = (col_idx - 1) * 20  # Spread horizontally
+                dy = -row_idx * 24 - 30  # Stack upward from spawn
+                px = base_x + dx
+                py = base_y + dy
+
+                # Create actual unit sprite for preview
+                from ..sprites.units import UnitSprite
+                anim_dict = template_manager.get_unit_template(u_type, player_id)
+                
+                preview_sprite = UnitSprite(
+                    x=px,
+                    y=py,
+                    anim_dict=anim_dict,
+                    entity_id=-1000 - idx - route * 100,  # Negative ID for previews
+                )
+                preview_sprite._preview_route = route
+                preview_sprite._preview_index = idx
+                preview_sprite._preview_player = player_id
+                preview_sprite.state = "idle"
+                preview_sprite.frames = anim_dict["idle"]
+                
+                # Add to appropriate sprite group
+                game.sim_state.render_manager.units.add(preview_sprite)
+                game.sim_state.render_manager.animation_manager.register(preview_sprite)
+                game.ui_state.route_preview_sprites.append(preview_sprite)
+
     def _draw_unit_tooltip(
         self, surface: pygame.Surface, mx: int, my: int, unit_type: str
     ) -> None:
@@ -276,3 +418,90 @@ class HUDRenderer:
         for surf in rendered_lines:
             surface.blit(surf, (box_x + padding, y_offset))
             y_offset += line_height
+
+    def _render_floating_gold_texts(self, surface: pygame.Surface, game) -> None:
+        """Render and update floating gold change indicators."""
+        import time
+        current_time = time.time()
+        
+        # Update and render each floating text
+        for text_data in list(game.ui_state.floating_gold_texts):
+            elapsed = current_time - text_data['start_time']
+            duration = 1.5  # 1.5 seconds lifetime
+            
+            if elapsed > duration:
+                game.ui_state.floating_gold_texts.remove(text_data)
+                continue
+            
+            # Calculate animation properties
+            progress = elapsed / duration
+            alpha = int(255 * (1 - progress))  # Fade out
+            y_offset = -30 - (progress * 40)  # Float upward
+            scale = 1.0 + (0.3 * (1 - abs(progress - 0.15) / 0.15)) if progress < 0.3 else 1.0  # Quick scale at start
+            
+            # Render text with size based on scale
+            font_size = int(32 * scale)
+            font = pygame.font.Font(None, font_size)
+            
+            # Color based on gain/loss
+            if text_data['amount'] > 0:
+                color = (100, 255, 100)  # Green for gain
+                text = f"+{text_data['amount']}"
+            else:
+                color = (255, 100, 100)  # Red for loss
+                text = f"{text_data['amount']}"
+            
+            # Render text
+            text_surf = font.render(text, True, color)
+            text_surf.set_alpha(alpha)
+            
+            # Position near gold display
+            x = text_data['x']
+            y = text_data['y'] + y_offset
+            
+            surface.blit(text_surf, (x, y))
+
+    def _render_floating_damage_texts(self, surface: pygame.Surface, game) -> None:
+        """Render and update floating damage indicators with white-to-red color transition."""
+        import time
+        current_time = time.time()
+        
+        # Update and render each floating damage text
+        for text_data in list(game.ui_state.floating_damage_texts):
+            elapsed = current_time - text_data['start_time']
+            duration = 1.0  # 1 second lifetime
+            
+            if elapsed > duration:
+                game.ui_state.floating_damage_texts.remove(text_data)
+                continue
+            
+            # Calculate animation properties
+            progress = elapsed / duration
+            alpha = int(255 * (1 - progress))  # Fade out
+            y_offset = -(progress * 50)  # Float upward
+            
+            # Scale effect - quick pop at start
+            if progress < 0.2:
+                scale = 1.0 + (0.4 * (1 - progress / 0.2))
+            else:
+                scale = 1.0
+            
+            # Color transition from white to red (ease effect)
+            # Start white (255, 255, 255), end red (255, 50, 50)
+            ease_progress = min(1.0, progress * 2)  # Faster color transition
+            r = 255
+            g = int(255 * (1 - ease_progress) + 50 * ease_progress)
+            b = int(255 * (1 - ease_progress) + 50 * ease_progress)
+            color = (r, g, b)
+            
+            # Render damage number
+            font_size = int(22 * scale)  # Smaller than gold text
+            font = pygame.font.Font(None, font_size)
+            text_surf = font.render(str(text_data['amount']), True, color)
+            text_surf.set_alpha(alpha)
+            
+            # Position at damage location
+            x = text_data['x'] - text_surf.get_width() // 2
+            y = text_data['y'] + y_offset
+            
+            surface.blit(text_surf, (x, y))

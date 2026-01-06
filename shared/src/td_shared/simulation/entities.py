@@ -57,6 +57,11 @@ class SimUnit(SimEntity):
         start_x, start_y = path_pixels[0]
 
         super().__init__(entity_id, player_id, start_x, start_y)
+        
+        # Store initial spawn offset for easing into path
+        self.spawn_offset_x = 0.0
+        self.spawn_offset_y = 0.0
+        self.ease_progress = 1.0  # 0-1, where 1 = fully on path
 
         self.unit_type = unit_type
         self.route = route
@@ -87,6 +92,18 @@ class SimUnit(SimEntity):
     def update(self) -> None:
         """Update unit position (deterministic movement along path)."""
         if not self.is_active:
+            return
+
+        # Handle easing from spawn offset into path
+        if self.ease_progress < 1.0:
+            ease_speed = 3.0  # How fast to ease (units per second)
+            self.ease_progress = min(1.0, self.ease_progress + ease_speed * self.sim_dt)
+            # Lerp from offset position to path start
+            path_start = self.path[0]
+            offset_x = path_start[0] + self.spawn_offset_x
+            offset_y = path_start[1] + self.spawn_offset_y
+            self.x = offset_x + (path_start[0] - offset_x) * self.ease_progress
+            self.y = offset_y + (path_start[1] - offset_y) * self.ease_progress
             return
 
         # Calculate how far the unit can move this TICK
@@ -188,7 +205,8 @@ class SimTower(SimEntity):
                 self.current_cooldown = self.cooldown_ticks
                 
                 self.last_shot_target = (target.x, target.y)
-                self.shoot_anim_timer = 5 # Keep target active for 5 ticks for visuals
+                # Keep the aiming/attack animation alive for the whole cooldown to avoid choppy resets
+                self.shoot_anim_timer = max(8, self.cooldown_ticks)
 
     def _find_target(self, enemy_units: list[SimUnit]) -> SimUnit | None:
         """Closest enemy unit in range, or None."""
