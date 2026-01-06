@@ -8,6 +8,7 @@ from td_client.display import DisplayManager
 from td_client.events import EventBus
 from td_client.network import NetworkClient, NetworkEventRouter, NetworkHandler
 from td_client.screens import (
+    GameOverScreen,
     GameScreen,
     MenuScreen,
     Screen,
@@ -44,6 +45,7 @@ class GameApp:
             "WAITING": WaitingScreen(self),
             "GAME": GameScreen(self),
             "VICTORY": VictoryScreen(self),
+            "GAME_OVER": GameOverScreen(self),
         }
 
         self.current_screen: Screen = self.screens["MENU"]

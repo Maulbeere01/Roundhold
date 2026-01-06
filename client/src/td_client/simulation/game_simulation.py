@@ -174,6 +174,7 @@ class GameSimulation:
         state = self.sim_state.wave_simulator.game_state
         if state:
             self.sim_state.render_manager.sync_sprites_to_state(state)
+
             if not self.player_state.round_result_received:
                 if self.player_id == "A":
                     my_vis = self.player_state.round_base_my_lives - int(

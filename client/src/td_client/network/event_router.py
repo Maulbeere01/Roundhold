@@ -87,4 +87,4 @@ class NetworkEventRouter:
             "Opponent disconnected, publishing event and switching to VictoryScreen"
         )
         self.event_bus.publish(OpponentDisconnectedEvent())
-        self.app.switch_screen("VICTORY")
+        self.app.switch_screen("GAME_OVER", won=True, reason="Opponent Left")

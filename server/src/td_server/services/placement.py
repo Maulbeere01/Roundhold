@@ -56,6 +56,7 @@ class TowerPlacementService:
             tile_col=norm_col,
             level=level,
         )
+
         self._placements.append(placement)
         return self._placement_to_sim_data(placement)
 

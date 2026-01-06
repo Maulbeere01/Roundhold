@@ -134,12 +134,24 @@ class GameScreen(Screen):
             self.game.player_state.my_gold = event.total_gold_player_B
             self.game.player_state.opponent_lives = event.total_lives_player_A
 
-        self.game.player_state.round_result_received = True
-        self.game.phase_state.in_combat = False
-        self.game.phase_state.in_preparation = True
-        self.game.phase_state.prep_seconds_remaining = (
-            self.game.phase_state.prep_seconds_total
-        )
+        # 2. CHECK FOR GAME OVER
+        my_lives = self.game.player_state.my_lives
+        opp_lives = self.game.player_state.opponent_lives
+
+        if my_lives <= 0:
+            # I lost
+            self.app.switch_screen("GAME_OVER", won=False)
+        elif opp_lives <= 0:
+            # I won
+            self.app.switch_screen("GAME_OVER", won=True)
+        else:
+            # Nobody won next round begin
+            self.game.player_state.round_result_received = True
+            self.game.phase_state.in_combat = False
+            self.game.phase_state.in_preparation = True
+            self.game.phase_state.prep_seconds_remaining = (
+                self.game.phase_state.prep_seconds_total
+            )
 
     def _on_tower_placed(self, event: TowerPlacedEvent) -> None:
         """Handle tower placed event from EventBus."""

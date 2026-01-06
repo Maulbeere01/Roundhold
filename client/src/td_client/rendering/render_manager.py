@@ -340,7 +340,7 @@ class RenderManager:
         castle_blue_image, castle_red_image = self.template_manager.get_castle_images(
             self.settings
         )
-
+        
         # Player A castle on left side, Player B castle on right side
         castle_blue = BuildingSprite(
             center_x - map_width // 2 + 100,

@@ -15,8 +15,7 @@ from td_shared.game import (
     SimulationData,
     SimUnitData,
 )
-from td_shared.map import PlacementGrid
-from td_shared.map.static_map import GLOBAL_MAP_LAYOUT
+from td_shared.map.static_map import GLOBAL_MAP_LAYOUT, TILE_TYPE_GRASS
 
 from ..services import EconomyManager, SnapshotBuilder, TowerPlacementService, WaveQueue
 
@@ -37,8 +36,9 @@ class GameStateManager:
         wave_queue: WaveQueue | None = None,
         snapshot_builder: SnapshotBuilder | None = None,
     ) -> None:
-        # Static placement grid derived from map layout
-        self.grid = PlacementGrid(GLOBAL_MAP_LAYOUT)
+        # Static global map layout
+        self.map_layout = GLOBAL_MAP_LAYOUT
+
         # Track placed towers (row, col) -> TowerPlacement
         self._placed_towers: dict[tuple[int, int], SimTowerData] = {}
 
@@ -47,6 +47,7 @@ class GameStateManager:
         self.placement = placement or TowerPlacementService(
             map_width_tiles=MAP_WIDTH_TILES
         )
+
         self.wave_queue = wave_queue or WaveQueue()
         self.snapshot_builder = snapshot_builder or SnapshotBuilder(
             self.placement, self.wave_queue
@@ -118,12 +119,31 @@ class GameStateManager:
             if not self.economy.spend_gold(player_id, cost):
                 return None
 
-            # 1. Grid validation handles terrain, bounds, and zones
-            if not self.grid.validate_build(player_id, tile_row, tile_col):
+            # 1. Zone Check
+            if player_id == "A" and tile_col >= 22:
+                self.economy.add_gold(player_id, cost)
+                return None
+            if player_id == "B" and tile_col < 24:
                 self.economy.add_gold(player_id, cost)
                 return None
 
-            # 2. Place tower
+            # 2. Terrain Check (Source of Truth is the Matrix)
+            if tile_row < 0 or tile_row >= len(self.map_layout):
+                self.economy.add_gold(player_id, cost)
+                return None
+            if tile_col < 0 or tile_col >= len(self.map_layout[tile_row]):
+                self.economy.add_gold(player_id, cost)
+                return None
+            if self.map_layout[tile_row][tile_col] != TILE_TYPE_GRASS:
+                self.economy.add_gold(player_id, cost)
+                return None
+
+            # 3. Check if tile is already occupied
+            if (tile_row, tile_col) in self._placed_towers:
+                self.economy.add_gold(player_id, cost)
+                return None
+
+            # 4. Place tower
             placed = self.placement.place_tower(
                 player_id=player_id,
                 tower_type=tower_type,
@@ -137,12 +157,7 @@ class GameStateManager:
                 self.economy.add_gold(player_id, cost)
                 return None
 
-            if not self.grid.place_tower(tile_row, tile_col):
-                # Should not happen; rollback for safety
-                self.economy.add_gold(player_id, cost)
-                return None
-
-            # 3. Track placement
+            # Track placement
             self._placed_towers[(tile_row, tile_col)] = placed
             return placed
 
