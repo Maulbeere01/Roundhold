@@ -340,8 +340,31 @@ class BuildController:
         if image is None:
             return False
             
-        from ..sprites.buildings import BuildingSprite
-        sprite = BuildingSprite(x=x, y=y, image=image, range_px=range_px)
+        sprite = None
+
+        if tower_type == "standard":
+            from ..sprites.buildings import MannedTowerSprite
+            
+            # 1. Fetch Animations
+            tm = self.game.render_manager.template_manager
+            archer_anims = tm.get_unit_template("archer", player_id)
+            
+            # 2. Create Manned Sprite
+            sprite = MannedTowerSprite(
+                x=x, y=y, 
+                image=image, 
+                archer_anims=archer_anims,
+                player_id=player_id,
+                range_px=range_px
+            )
+            
+            # 3. Register with Animation Manager (Crucial for it to appear/animate immediately)
+            self.game.render_manager.animation_manager.register(sprite)
+        else:
+            # Fallback for other towers (static)
+            from ..sprites.buildings import BuildingSprite
+            sprite = BuildingSprite(x=x, y=y, image=image, range_px=range_px)
+
         self.game.render_manager.buildings.add(sprite)
         self.game.ui_state.local_towers[key] = sprite
         return True
@@ -351,4 +374,8 @@ class BuildController:
         key = (player_id, row, col)
         sprite = self.game.ui_state.local_towers.pop(key, None)
         if sprite:
+            # If it was animated (MannedTowerSprite), we must unregister it
+            if hasattr(sprite, "update_animation"):
+                 self.game.render_manager.animation_manager.unregister(sprite)
+            
             sprite.kill()

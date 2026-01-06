@@ -63,28 +63,44 @@ class SpriteFactory:
         return sprite
 
     def create_tower_sprite(
-        self, entity_id: int, tower_type: str, x: float, y: float, range_px: float
+        self, entity_id: int, tower_type: str, player_id: str, x: float, y: float, range_px: float
     ) -> BuildingSprite | None:
         
-        # Get the static image
         image = self.template_manager.get_tower_template(tower_type)
-        
         if not image:
             return None
             
-        # Create static sprite
-        # Note: midbottom=(x, y) aligns the tower's base with the tile center
-        sprite = BuildingSprite(
-            x=x, y=y, 
-            image=image, 
-            entity_id=entity_id, 
-            range_px=range_px
-        )
+        # --- MODIFIED LOGIC ---
+        from ..sprites.buildings import BuildingSprite, MannedTowerSprite
+        
+        if tower_type == "standard":
+            # Get Archer animations for the correct player color
+            archer_anims = self.template_manager.get_unit_template("archer", player_id) 
+
+            sprite = MannedTowerSprite(
+                x=x, y=y,
+                image=image,
+                archer_anims=archer_anims,
+                player_id=player_id,
+                entity_id=entity_id,
+                range_px=range_px
+            )
+        else:
+            # Normal logic for other towers
+            sprite = BuildingSprite(
+                x=x, y=y, 
+                image=image, 
+                entity_id=entity_id, 
+                range_px=range_px
+            )
         
         self.towers_group.add(sprite)
         self.tower_sprites[entity_id] = sprite
         
-        # Note: We do NOT register towers with animation_manager because they are static
+        # REGISTER WITH ANIMATION MANAGER! 
+        if isinstance(sprite, MannedTowerSprite):
+            self.animation_manager.register(sprite)
+            
         return sprite
 
     def remove_unit_sprite(self, entity_id: int) -> None:

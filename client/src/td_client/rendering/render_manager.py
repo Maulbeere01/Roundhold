@@ -9,6 +9,7 @@ from td_shared.simulation import GameState, SimEntity
 
 from ..sprites.animation import AnimationManager
 from ..sprites.buildings import BuildingSprite
+from ..sprites.buildings import MannedTowerSprite
 from ..sprites.units import UnitSprite
 from .foam_renderer import FoamRenderer
 from .map_layer_renderer import MapLayerRenderer
@@ -316,22 +317,30 @@ class RenderManager:
             render_pos = self._sim_to_screen_pos(tower)
 
             if entity_id not in self.tower_sprites:
+                # --- UPDATE: Pass tower.player_id ---
                 sprite = self.sprite_factory.create_tower_sprite(
                     entity_id=entity_id,
                     tower_type=tower.tower_type,
+                    player_id=tower.player_id,
                     x=render_pos.x,
                     y=render_pos.y,
                     range_px=tower.range_px,
                 )
-                if sprite:
-                    logger.debug(
-                        f"Created tower sprite {entity_id} at ({render_pos.x}, {render_pos.y})"
-                    )
-                else:
-                    logger.warning(f"No template for tower type: {tower.tower_type}")
             else:
                 sprite = self.tower_sprites[entity_id]
-                sprite.set_position(render_pos.x, render_pos.y)
+            if isinstance(sprite, MannedTowerSprite):
+                # Check if the sim tower has a target
+                if tower.last_shot_target:
+                    # Convert sim target pos to screen pos
+                    # We create a dummy object to use _sim_to_screen_pos
+                    class Dummy: pass
+                    d = Dummy()
+                    d.x, d.y = tower.last_shot_target
+                    
+                    target_screen_pos = self._sim_to_screen_pos(d)
+                    sprite.update_facing(target_screen_pos.x, target_screen_pos.y)
+                else:
+                    sprite.reset_to_idle()
 
     def _create_static_castles(
         self, center_x: int, center_y: int, map_width: int
@@ -410,17 +419,13 @@ class RenderManager:
                 self.render_surface.blit(surface, rect)
 
     def _draw_sorted_sprites(self) -> None:
-        """Draw all sprites sorted by Y coordinate"""
-        all_sprites = (
-            list(self.buildings)
-            + list(self.units)
-            + list(self.decor)
-            + list(self.effects)
-        )
-
+        all_sprites = list(self.buildings) + list(self.units) + list(self.decor) + list(self.effects)
         sorted_sprites = sorted(all_sprites, key=lambda s: s.get_sort_key())
         for sprite in sorted_sprites:
-            self.render_surface.blit(sprite.image, sprite.rect)
+            if hasattr(sprite, "draw_on"):
+                sprite.draw_on(self.render_surface)
+            else:
+                self.render_surface.blit(sprite.image, sprite.rect)
 
     def draw(self, terrain_map) -> None:
         """Render everything in correct layered order.

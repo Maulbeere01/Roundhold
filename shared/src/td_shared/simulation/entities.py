@@ -161,12 +161,20 @@ class SimTower(SimEntity):
         self.range_px = stats["range_px"]
         self.cooldown_ticks = stats["cooldown_ticks"]
         self.current_cooldown = 0
+        self.last_shot_target: tuple[float, float] | None = None
+        self.shoot_anim_timer = 0 
 
     def update(self, enemy_units: list[SimUnit], game_state: GameState) -> None:
         """Update tower (cooldown and shooting)."""
         if not self.is_active:
             return
-
+        
+        # Decrement visual timer
+        if self.shoot_anim_timer > 0:
+            self.shoot_anim_timer -= 1
+        else:
+            self.last_shot_target = None
+            
         # Update cooldown (in ticks)
         if self.current_cooldown > 0:
             self.current_cooldown -= 1
@@ -178,6 +186,9 @@ class SimTower(SimEntity):
             if target is not None:
                 self._shoot(target, game_state)
                 self.current_cooldown = self.cooldown_ticks
+                
+                self.last_shot_target = (target.x, target.y)
+                self.shoot_anim_timer = 5 # Keep target active for 5 ticks for visuals
 
     def _find_target(self, enemy_units: list[SimUnit]) -> SimUnit | None:
         """Closest enemy unit in range, or None."""
