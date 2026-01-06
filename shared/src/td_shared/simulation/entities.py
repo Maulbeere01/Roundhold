@@ -230,4 +230,15 @@ class SimTower(SimEntity):
 
     def _shoot(self, target: SimUnit, game_state: GameState) -> None:
         """Shoot at target unit."""
+        # Track projectile for visual rendering
+        if not hasattr(game_state, 'pending_projectiles'):
+            game_state.pending_projectiles = []
+        game_state.pending_projectiles.append({
+            'from_x': self.x,
+            'from_y': self.y,
+            'to_x': target.x,
+            'to_y': target.y,
+            'damage': self.damage,
+        })
+        
         target.take_damage(self.damage, self.player_id, game_state)

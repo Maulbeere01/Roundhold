@@ -301,6 +301,9 @@ class RenderManager:
                             sprite._preview_player == unit.player_id):
                             sprite.kill()
                             self.animation_manager.unregister(sprite)
+                            # Also remove from units group
+                            if sprite in self.units:
+                                self.units.remove(sprite)
                             ui_state.route_preview_sprites.remove(sprite)
                             logger.debug(f"Removed preview sprite for spawning unit {entity_id} (route {unit.route})")
                             break
@@ -417,6 +420,36 @@ class RenderManager:
             update_single_castle(self.castle_A_sprite, "A")
         if hasattr(self, 'castle_B_sprite'):
             update_single_castle(self.castle_B_sprite, "B")
+
+    def spawn_projectiles_from_state(self, game_state: GameState, ui_state) -> None:
+        """Spawn arrow projectiles for any shots fired this tick."""
+        if not hasattr(game_state, 'pending_projectiles'):
+            return
+        
+        import time
+        for proj in game_state.pending_projectiles:
+            # Convert sim coords to screen coords
+            class Dummy: pass
+            from_d = Dummy()
+            from_d.x, from_d.y = proj['from_x'], proj['from_y']
+            to_d = Dummy()
+            to_d.x, to_d.y = proj['to_x'], proj['to_y']
+            
+            from_screen = self._sim_to_screen_pos(from_d)
+            to_screen = self._sim_to_screen_pos(to_d)
+            
+            ui_state.arrow_projectiles.append({
+                'start_x': from_screen.x,
+                'start_y': from_screen.y - 50,  # Archer position on tower
+                'end_x': to_screen.x,
+                'end_y': to_screen.y - 15,  # Target center mass
+                'start_time': time.time(),
+                'duration': 0.18,  # Fast arrow travel time
+                'damage': proj['damage'],
+            })
+        
+        # Clear pending projectiles
+        game_state.pending_projectiles.clear()
 
     def _create_static_castles(
         self, center_x: int, center_y: int, map_width: int

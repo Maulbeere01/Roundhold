@@ -154,10 +154,15 @@ class GameScreen(Screen):
             )
             
             # Clear preview sprites when returning to preparation phase
-            for sprite in self.game.ui_state.route_preview_sprites:
+            for sprite in list(self.game.ui_state.route_preview_sprites):
                 sprite.kill()
-                self.game.sim_state.render_manager.animation_manager.unregister(sprite)
+                if self.game.sim_state.render_manager:
+                    self.game.sim_state.render_manager.animation_manager.unregister(sprite)
+                    # Also remove from units group if present
+                    if sprite in self.game.sim_state.render_manager.units:
+                        self.game.sim_state.render_manager.units.remove(sprite)
             self.game.ui_state.route_preview_sprites.clear()
+            self.game.ui_state.route_unit_previews.clear()  # Clear the queue data too
             if hasattr(self.game.ui_state, '_last_preview_state'):
                 self.game.ui_state._last_preview_state = {}
             # Reset spawned unit tracking for next round

@@ -183,6 +183,9 @@ class GameSimulation:
         state = self.sim_state.wave_simulator.game_state
         if state:
             self.sim_state.render_manager.sync_sprites_to_state(state, self.ui_state)
+            
+            # Spawn arrow projectiles from simulation shots
+            self.sim_state.render_manager.spawn_projectiles_from_state(state, self.ui_state)
 
             if not self.player_state.round_result_received:
                 if self.player_id == "A":

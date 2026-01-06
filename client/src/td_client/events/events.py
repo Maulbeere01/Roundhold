@@ -1,14 +1,3 @@
-"""Event definitions for the centralized event system.
-
-All events are immutable dataclasses that can be published to the EventBus.
-Events are organized by category:
-- NetworkEvent: Events from server (match found, round start, etc.)
-- ClientActionEvent: User actions that need server confirmation
-- ServerResponseEvent: Server responses to client actions
-- UIEvent: Local UI state changes
-- StateEvent: Game state changes
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

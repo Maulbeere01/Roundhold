@@ -74,6 +74,7 @@ class UIState:
     floating_gold_texts: list = None  # List of floating gold change indicators
     gold_display_scale: float = 1.0  # Scale pulse for gold display
     floating_damage_texts: list = None  # List of floating damage indicators
+    arrow_projectiles: list = None  # List of active arrow projectiles
 
     def __post_init__(self):
         """Initialize mutable defaults."""
@@ -93,6 +94,8 @@ class UIState:
             self.floating_gold_texts = []
         if self.floating_damage_texts is None:
             self.floating_damage_texts = []
+        if self.arrow_projectiles is None:
+            self.arrow_projectiles = []
 
 
 @dataclass

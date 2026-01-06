@@ -70,6 +70,9 @@ class HUDRenderer:
         
         # Render floating damage texts
         self._render_floating_damage_texts(surface, game)
+        
+        # Render arrow projectiles
+        self._render_arrow_projectiles(surface, game)
 
         # 3. Send units buttons with route preview of selected unit type
         current_time = time.time()
@@ -287,6 +290,9 @@ class HUDRenderer:
                     if hasattr(sprite, '_preview_route') and sprite._preview_route == route:
                         sprite.kill()
                         game.sim_state.render_manager.animation_manager.unregister(sprite)
+                        # Also remove from units group
+                        if sprite in game.sim_state.render_manager.units:
+                            game.sim_state.render_manager.units.remove(sprite)
                         game.ui_state.route_preview_sprites.remove(sprite)
         
         # Store current state for next frame comparison
@@ -492,7 +498,7 @@ class HUDRenderer:
             r = 255
             g = int(255 * (1 - ease_progress) + 50 * ease_progress)
             b = int(255 * (1 - ease_progress) + 50 * ease_progress)
-            color = (r, g, b)
+            color = (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
             
             # Render damage number
             font_size = int(22 * scale)  # Smaller than gold text
@@ -505,3 +511,73 @@ class HUDRenderer:
             y = text_data['y'] + y_offset
             
             surface.blit(text_surf, (x, y))
+
+    def _render_arrow_projectiles(self, surface: pygame.Surface, game) -> None:
+        """Render and update arrow projectiles flying from towers to targets."""
+        import time
+        import math
+        current_time = time.time()
+        
+        for arrow in list(game.ui_state.arrow_projectiles):
+            elapsed = current_time - arrow['start_time']
+            progress = elapsed / arrow['duration']
+            
+            if progress >= 1.0:
+                game.ui_state.arrow_projectiles.remove(arrow)
+                continue
+            
+            # Interpolate position
+            x = arrow['start_x'] + (arrow['end_x'] - arrow['start_x']) * progress
+            y = arrow['start_y'] + (arrow['end_y'] - arrow['start_y']) * progress
+            
+            # Add slight arc (parabola) for visual appeal
+            arc_height = 20
+            arc_offset = -arc_height * 4 * progress * (1 - progress)  # Parabola peaks at 0.5
+            y += arc_offset
+            
+            # Calculate angle from start to end
+            dx = arrow['end_x'] - arrow['start_x']
+            dy = arrow['end_y'] - arrow['start_y']
+            angle = math.atan2(dy, dx)
+            
+            # Draw arrow as a line with an arrowhead
+            arrow_length = 12
+            arrow_width = 3
+            
+            # Arrow body (line)
+            end_x = x
+            end_y = y
+            start_x = x - math.cos(angle) * arrow_length
+            start_y = y - math.sin(angle) * arrow_length
+            
+            # Arrow color - brownish wood color
+            arrow_color = (139, 90, 43)
+            tip_color = (180, 180, 180)  # Silver tip
+            
+            # Draw arrow shaft
+            pygame.draw.line(surface, arrow_color, (start_x, start_y), (end_x, end_y), arrow_width)
+            
+            # Draw arrowhead (triangle)
+            head_length = 6
+            head_width = 4
+            
+            # Arrowhead points
+            tip = (end_x + math.cos(angle) * 2, end_y + math.sin(angle) * 2)
+            left = (end_x - math.cos(angle + 0.5) * head_length, 
+                    end_y - math.sin(angle + 0.5) * head_length)
+            right = (end_x - math.cos(angle - 0.5) * head_length,
+                     end_y - math.sin(angle - 0.5) * head_length)
+            
+            pygame.draw.polygon(surface, tip_color, [tip, left, right])
+            
+            # Draw fletching (feathers) at the back
+            fletch_x = start_x - math.cos(angle) * 2
+            fletch_y = start_y - math.sin(angle) * 2
+            fletch_color = (200, 50, 50)  # Red feathers
+            
+            # Two small lines for fletching
+            perp_angle = angle + math.pi / 2
+            f_len = 4
+            pygame.draw.line(surface, fletch_color, 
+                           (fletch_x + math.cos(perp_angle) * f_len, fletch_y + math.sin(perp_angle) * f_len),
+                           (fletch_x - math.cos(perp_angle) * f_len, fletch_y - math.sin(perp_angle) * f_len), 2)
