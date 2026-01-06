@@ -14,6 +14,12 @@ UNIT_DESCRIPTIONS = {
         "Good for early game.",
     ],
     "pawn": ["Type: Pawn", "Role: Tank", "Slow but high HP.", "Distracts towers."],
+    "archer": [
+        "Type: Archer",
+        "Role: Ranged",
+        "Attacks from distance.",
+        "Low HP, High Damage.",
+    ],
 }
 
 

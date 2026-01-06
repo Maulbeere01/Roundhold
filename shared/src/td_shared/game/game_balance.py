@@ -13,7 +13,7 @@ ROUND_ACK_TIMEOUT: float = 120.0
 
 # Player economy
 PLAYER_LIVES: int = 20
-START_GOLD: int = 50
+START_GOLD: int = 100
 GOLD_PER_KILL: int = 1
 
 
@@ -23,6 +23,7 @@ class UnitStats(TypedDict):
     speed: float
     base_damage: int
 
+
 class TowerStats(TypedDict):
     cost: int
     damage: int
@@ -31,17 +32,18 @@ class TowerStats(TypedDict):
 
 
 UNIT_STATS: dict[str, UnitStats] = {
-    "standard": {
-        "cost": 5,
-        "health": 50,
-        "speed": 120.0,
-        "base_damage": 1
-    },
-        "pawn": {
+    "standard": {"cost": 5, "health": 50, "speed": 120.0, "base_damage": 1},
+    "pawn": {
         "cost": 15,
         "health": 120,
         "speed": 90.0,
         "base_damage": 10,
+    },
+    "archer": {
+        "cost": 10,
+        "health": 30,  # Lower health
+        "speed": 110.0,  # Fast
+        "base_damage": 2,  # Higher damage
     },
 }
 

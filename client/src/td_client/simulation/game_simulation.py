@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import pygame
 from td_shared import (
-    TOWER_STATS,
     PlacementGrid,
     PlayerID,
     RoundStartData,
@@ -14,8 +13,8 @@ from td_shared import (
 from ..assets import AssetLoader
 from ..config import AssetPaths, GameSettings
 from ..display import DisplayManager
-from ..network import NetworkClient
 from ..events import RequestRoundAckEvent
+from ..network import NetworkClient
 from .game_states import MapState, PhaseState, PlayerState, SimulationState, UIState
 
 if TYPE_CHECKING:
@@ -205,6 +204,14 @@ class GameSimulation:
                 0.0, self.phase_state.combat_seconds_remaining - dt
             )
             state = self.sim_state.wave_simulator.game_state
+
+            if self.player_state.my_lives <= 0:
+                self.render_manager.destroy_castle(self.player_id)
+
+            if self.player_state.opponent_lives <= 0:
+                opponent_id = "B" if self.player_id == "A" else "A"
+                self.render_manager.destroy_castle(opponent_id)
+
             if (
                 state
                 and not self.player_state.round_ack_sent

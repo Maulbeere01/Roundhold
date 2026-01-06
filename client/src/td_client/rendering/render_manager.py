@@ -337,24 +337,43 @@ class RenderManager:
         self, center_x: int, center_y: int, map_width: int
     ) -> None:
         """Create static castle sprites for each player."""
-        castle_blue_image, castle_red_image = self.template_manager.get_castle_images(
-            self.settings
-        )
-        
-        # Player A castle on left side, Player B castle on right side
-        castle_blue = BuildingSprite(
+
+        (
+            castle_blue_image,
+            castle_red_image,
+            self.castle_destroyed_image,  # Store this for later use
+        ) = self.template_manager.get_castle_images(self.settings)
+
+        # Player A castle (Blue/Left)
+        self.castle_A_sprite = BuildingSprite(
             center_x - map_width // 2 + 100,
             center_y,
             castle_blue_image,
         )
-        castle_red = BuildingSprite(
+        # Player B castle (Red/Right)
+        self.castle_B_sprite = BuildingSprite(
             center_x + map_width // 2 - 100,
             center_y,
             castle_red_image,
         )
 
-        self.buildings.add(castle_blue)
-        self.buildings.add(castle_red)
+        self.buildings.add(self.castle_A_sprite)
+        self.buildings.add(self.castle_B_sprite)
+
+    # Handle image swap
+    def destroy_castle(self, player_id: str) -> None:
+        """Swaps the castle sprite to the destroyed version."""
+        target_sprite = (
+            self.castle_A_sprite if player_id == "A" else self.castle_B_sprite
+        )
+
+        # Only update if it hasn't been destroyed yet
+        if target_sprite.image != self.castle_destroyed_image:
+            old_midbottom = target_sprite.rect.midbottom
+            target_sprite.image = self.castle_destroyed_image
+            # Re-set rect to ensure it stays centered on the ground
+            target_sprite.rect = target_sprite.image.get_rect(midbottom=old_midbottom)
+            logger.info(f"Visuals: Castle {player_id} destroyed.")
 
     def _draw_water_background(self) -> None:
         """Draw water tile background layer (lowest layer)."""
@@ -366,7 +385,7 @@ class RenderManager:
         Args:
             tile_map: TileMap instance
         """
-        
+
         elevation = tile_map.get_elevation_surface()
         elev_offset = tile_map.get_elevation_offset()
         self.render_surface.blit(
