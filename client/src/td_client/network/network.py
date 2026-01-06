@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from collections.abc import Callable, Sequence
 
@@ -34,7 +35,9 @@ class NetworkClient:
     - Error handling: Exceptions are caught and passed to callbacks as failure signals
     """
 
-    def __init__(self, server_addr: str = "127.0.0.1:42069") -> None:
+    def __init__(self, server_addr: str | None = None) -> None:
+        if server_addr is None:
+            server_addr = os.getenv("TD_SERVER_ADDR", "127.0.0.1:42069")
         if _IMPORT_ERROR is not None:
             raise RuntimeError(
                 "gRPC stubs not found. Generate them from td_shared/game.proto before using NetworkClient."

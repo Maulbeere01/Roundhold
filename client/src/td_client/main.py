@@ -3,6 +3,7 @@ import logging
 import pygame
 
 from td_client.assets import AssetLoader
+from td_client.audio.audio import AudioService
 from td_client.config import AssetPaths, GameSettings
 from td_client.display import DisplayManager
 from td_client.events import EventBus
@@ -29,6 +30,7 @@ class GameApp:
         self.asset_paths = AssetPaths()
         self.asset_loader = AssetLoader(self.asset_paths)
         self.display_manager = DisplayManager()
+        self.audio = AudioService()
         self.clock = self.display_manager.clock
 
         # Central event bus for all client-side communication

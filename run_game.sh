@@ -44,7 +44,6 @@ cleanup() {
 
     safe_kill "$CLIENT1_PID" "Client 1"
     safe_kill "$CLIENT2_PID" "Client 2"
-
     safe_kill "$SERVER_PID" "Server"
 
     echo -e "${GREEN}All processes stopped${NC}"
@@ -66,13 +65,22 @@ if [ ! -z "$EXISTING_SERVER" ] || [ ! -z "$EXISTING_CLIENTS" ]; then
     sleep 1
 fi
 
+# Activate venv
+if [ -d ".venv" ]; then
+    echo -e "${YELLOW}Activating virtual environment...${NC}"
+    source .venv/bin/activate
+else
+    echo -e "${RED}Error: .venv not found. Please run setup first.${NC}"
+    exit 1
+fi
+
 if ! command -v python &> /dev/null; then
     echo -e "${RED}Error: python command not found${NC}"
     exit 1
 fi
 
 echo -e "${YELLOW}Starting server...${NC}"
-python -m server.src.td_server.main &
+./launch/run_server.sh &
 SERVER_PID=$!
 echo "Server started with PID: $SERVER_PID"
 
@@ -86,17 +94,23 @@ fi
 
 echo -e "${GREEN}Server is running${NC}\n"
 
-echo -e "${YELLOW}Starting client 1...${NC}"
-python -m client.src.td_client.main &
+# Get absolute WSL path
+WSL_PATH=$(pwd)
+
+WIN_PROJECT_PATH=$(wslpath -w "$(pwd)")
+
+WSL_IP=$(hostname -I | awk '{print $1}' | xargs) # xargs entfernt versteckte Leerzeichen
+
+echo -e "${YELLOW}Starting client 1 (Windows via PowerShell)...${NC}"
+# Wir setzen die IP explizit ein
+powershell.exe -Command "\$env:TD_SERVER_ADDR='$WSL_IP:42069'; cd '$WIN_PROJECT_PATH'; python -m client.src.td_client.main" &
 CLIENT1_PID=$!
-echo "Client 1 started with PID: $CLIENT1_PID"
 
 sleep 1
 
-echo -e "${YELLOW}Starting client 2...${NC}"
-python -m client.src.td_client.main &
+echo -e "${YELLOW}Starting client 2 (Windows via PowerShell)...${NC}"
+powershell.exe -Command "\$env:TD_SERVER_ADDR='$WSL_IP:42069'; cd '$WIN_PROJECT_PATH'; python -m client.src.td_client.main" &
 CLIENT2_PID=$!
-echo "Client 2 started with PID: $CLIENT2_PID"
 
 echo -e "\n${GREEN}All processes started!${NC}"
 echo -e "Server PID: $SERVER_PID"

@@ -1,9 +1,15 @@
+import io
+import logging
 from pathlib import Path
 
 import pygame
 
+logger = logging
+
 # Config
-BASE_PATH = "sounds"
+_CURRENT_DIR = Path(__file__).parent.absolute()
+BASE_PATH = _CURRENT_DIR / "sounds"
+
 FILE_EXTENSIONS = (".wav", ".mp3", ".ogg")
 
 
@@ -12,12 +18,16 @@ class AudioService:
 
     def __init__(self):
         if not AudioService._initialized:
-            pygame.mixer.init()
-            AudioService._initialized = True
+            try:
+                pygame.mixer.pre_init(44100, -16, 2, 512)
+                pygame.mixer.init()
+                AudioService._initialized = True
+            except Exception as e:
+                logger.error("AudioService initialization error: %s", e)
 
-        self._BASE_PATH = Path(BASE_PATH)
-        self._cache: dict[str, pygame.mixer.Sound] = {}
-        self._sound_volume = 1.0  # Default volume
+        self._BASE_PATH = BASE_PATH
+        self._cache = {}
+        self._sound_volume = 1.0
 
     # ---- Public APIs ----
 
@@ -31,7 +41,7 @@ class AudioService:
     def play_ui_sound(self, sound_name: str) -> None:
         path = self._BASE_PATH / "ui" / sound_name
         if sound := self._get_sound(path):
-            pygame.mixer.find_channel(True).play(sound)
+            sound.play()
 
     # Unit Sounds
     def play_unit_sound(self, unit_type: str, sound_name: str) -> None:
@@ -70,25 +80,39 @@ class AudioService:
 
     # ---- Private Utilities ----
 
-    # Flach (dein Stil)
+    def _find_file(self, path: Path) -> Path | None:
+        for ext in FILE_EXTENSIONS:
+            p = path.with_suffix(ext)
+            if p.exists():
+                return p
+        return None
+
     def _get_sound(self, path: Path) -> pygame.mixer.Sound | None:
-        key = str(path)
+        if not AudioService._initialized:
+            return None
 
-        if key in self._cache:
-            return self._cache[key]
+        # Suche Datei
+        full_path = None
+        for ext in FILE_EXTENSIONS:
+            p = path.with_suffix(ext)
+            if p.exists():
+                full_path = p
+                break
 
-        full_path = self._find_file(path)
         if not full_path:
             return None
 
-        sound = pygame.mixer.Sound(full_path)
-        sound.set_volume(self._sound_volume)
-        self._cache[key] = sound
-        return sound
+        key = str(full_path)
+        if key in self._cache:
+            return self._cache[key]
 
-    def _find_file(self, path: Path) -> Path | None:
-        for ext in FILE_EXTENSIONS:
-            full_path = path.with_suffix(ext)
-            if full_path.exists():
-                return full_path
-        return None
+        try:
+            sound_data = full_path.read_bytes()
+            sound = pygame.mixer.Sound(io.BytesIO(sound_data))
+
+            sound.set_volume(self._sound_volume)
+            self._cache[key] = sound
+            return sound
+        except Exception as e:
+            logger.error("Loading sound failed (%s): %s", full_path.name, e)
+            return None

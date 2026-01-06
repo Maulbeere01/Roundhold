@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from td_client.events import (
     EventBus,
@@ -50,10 +50,15 @@ class NetworkEventRouter:
         ), "round_start_pb must have simulation_data"
 
         logger.info("Match found. Assigned id=%s", player_id)
+
+        # Cast to Literal type for type safety
+        validated_player_id: Literal["A", "B"] = player_id  # type: ignore[assignment]
+
         self.event_bus.publish(
-            MatchFoundEvent(player_id=player_id, initial_round_start_pb=round_start_pb)
+            MatchFoundEvent(
+                player_id=validated_player_id, initial_round_start_pb=round_start_pb
+            )
         )
-        # Screen switch still handled directly for now (could be event-driven later)
         self.app.switch_screen(
             "GAME",
             player_id=player_id,
