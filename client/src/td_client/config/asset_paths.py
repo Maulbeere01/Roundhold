@@ -3,7 +3,6 @@
 import os
 from pathlib import Path
 
-
 class AssetPaths:
     """Centralized asset path manager for all game resources."""
 
@@ -26,3 +25,15 @@ class AssetPaths:
         )
         self.castle_blue = self.buildings_dir / "Castle_Blue.png"
         self.castle_red = self.buildings_dir / "Castle_Red.png"
+
+        #UNITS
+        self.warrior_blue = self.assets_dir / "Factions/Knights/Troops/Warrior/Blue/Warrior_Blue.png"
+        self.warrior_red = self.assets_dir / "Factions/Knights/Troops/Warrior/Red/Warrior_Red.png"
+
+        #TOWERS
+        self.tower_blue = self.assets_dir / "Factions/Knights/Buildings/Tower/Tower_Blue.png"
+        self.tower_red = self.assets_dir / "Factions/Knights/Buildings/Tower/Tower_Red.png"
+
+        #PARTICLES
+        self.spawn_dust = self.assets_dir / "Particles/Dust_02.png"
+        self.explosion = self.assets_dir / "Effects/Explosion/Explosions.png"

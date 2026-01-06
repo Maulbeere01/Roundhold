@@ -156,3 +156,81 @@ class AssetLoader:
             frames.append(frame)
 
         return frames
+
+    def load_grid_row(
+        self,
+        path: Path,
+        row_index: int,       # Which row to extract (0 = top row)
+        frame_count: int,     # How many columns/frames are in that row
+        scale_factor: float | None = None,
+    ) -> list[pygame.Surface]:
+        """Loads a specific row from a grid-based spritesheet.
+        
+        Useful for 'Tiny Swords' assets where multiple animations are on one sheet.
+        """
+        
+        full_sheet = self.load_image(path)
+        sheet_width, sheet_height = full_sheet.get_size()
+
+        # Assumption: The sheet is evenly divided horizontally
+        frame_width = sheet_width // frame_count
+        
+        frame_height = frame_width 
+
+        frames = []
+        for i in range(frame_count):
+            # Calculate coordinates
+            # X moves right with the loop, Y is fixed to the specific row
+            x = i * frame_width
+            y = row_index * frame_height
+            
+            # Create a rectangle for the current frame
+            rect = pygame.Rect(x, y, frame_width, frame_height)
+            
+            # Extract the specific subsurface
+            frame = full_sheet.subsurface(rect).copy()
+            
+            # Apply scaling if requested
+            frame = self.scale_surface(frame, scale_factor=scale_factor)
+            frames.append(frame)
+            
+        return frames
+
+    def load_grid_row(
+        self,
+        path: Path,
+        row_index: int,       # Which row to extract (0 = top row)
+        frame_count: int,     # How many columns/frames are in that row
+        scale_factor: float | None = None,
+    ) -> list[pygame.Surface]:
+        """Loads a specific row from a grid-based spritesheet.
+        
+        Useful for 'Tiny Swords' assets where multiple animations are on one sheet.
+        """
+        
+        full_sheet = self.load_image(path)
+        sheet_width, sheet_height = full_sheet.get_size()
+
+        # Assumption: The sheet is evenly divided horizontally
+        frame_width = sheet_width // frame_count
+        
+        frame_height = frame_width 
+
+        frames = []
+        for i in range(frame_count):
+            # Calculate coordinates
+            # X moves right with the loop, Y is fixed to the specific row
+            x = i * frame_width
+            y = row_index * frame_height
+            
+            # Create a rectangle for the current frame
+            rect = pygame.Rect(x, y, frame_width, frame_height)
+            
+            # Extract the specific subsurface
+            frame = full_sheet.subsurface(rect).copy()
+            
+            # Apply scaling if requested
+            frame = self.scale_surface(frame, scale_factor=scale_factor)
+            frames.append(frame)
+            
+        return frames

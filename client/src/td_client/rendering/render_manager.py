@@ -76,7 +76,7 @@ class RenderManager:
         self.sprite_factory = SpriteFactory(
             self.template_manager, self.animation_manager
         )
-        self.sprite_factory.configure_groups(self.units, self.buildings)
+        self.sprite_factory.configure_groups(self.units, self.buildings, self.effects)
         self.unit_sprites: dict[int, UnitSprite] = self.sprite_factory.unit_sprites
         self.tower_sprites: dict[int, BuildingSprite] = (
             self.sprite_factory.tower_sprites
@@ -94,7 +94,7 @@ class RenderManager:
         self.map_layer_renderer.configure(
             self.tile_size, self.screen_width, self.screen_height
         )
-        self.sprite_factory.configure_groups(self.units, self.buildings)
+        self.sprite_factory.configure_groups(self.units, self.buildings, self.effects)
 
     def initialize(self, game) -> None:
         """Initialize all rendering components with game state.
@@ -108,14 +108,15 @@ class RenderManager:
         Args:
             game: GameSimulation instance providing terrain_map, settings, map dimensions, etc.
         """
-        self.set_map(game.map_state.terrain_map)
+        self.set_map(game.terrain_map)
         self.initialize_water_background()
         self.initialize_environment_effects(
-            game.map_state.terrain_map,
+            game.terrain_map,
             game.settings.vertical_offset,
             game.map_state.map_width,
             game.map_state.center_x,
         )
+
         self.initialize_sprites(
             game.map_state.center_x,
             game.map_state.center_y,
@@ -132,6 +133,7 @@ class RenderManager:
         Loads the water tile from the separate Water.png file and scales it
         to match the tile size for tiling across the screen.
         """
+
         self.map_layer_renderer.initialize_water()
         logger.debug("Water background initialized")
 
@@ -148,6 +150,7 @@ class RenderManager:
             map_width: Width of map in pixels
             center_x: Center X coordinate of screen
         """
+
         self._initialize_foam(terrain_map, map_offset_y)
         self._initialize_paths(map_width, center_x, map_offset_y)
         # Pass road_renderer to map_layer_renderer so it can draw paths
@@ -183,6 +186,7 @@ class RenderManager:
             self.screen_width,
             self.screen_height,
         )
+
         self.map_layer_renderer.initialize_foam(self.foam_renderer)
         logger.debug(f"Foam renderer initialized with {len(foam_positions)} positions")
 
@@ -234,6 +238,7 @@ class RenderManager:
             map_width: Width of map in pixels
             vertical_offset: Vertical offset of map
         """
+
         self.template_manager.preload_templates()
         self._create_static_castles(center_x, center_y, map_width)
         logger.debug("Sprite templates loaded")
@@ -244,6 +249,7 @@ class RenderManager:
         The server sends authoritative global pixel coordinates,
         so we simply add the map offset.
         """
+
         if self.terrain_map is None:
             return pygame.Vector2(entity.x, entity.y)
         return pygame.Vector2(
@@ -262,6 +268,7 @@ class RenderManager:
         Args:
             game_state: Current simulation state
         """
+
         # Sync units
         for unit in game_state.units:
             entity_id = unit.entity_id
@@ -359,6 +366,7 @@ class RenderManager:
         Args:
             tile_map: TileMap instance
         """
+        
         elevation = tile_map.get_elevation_surface()
         elev_offset = tile_map.get_elevation_offset()
         self.render_surface.blit(
