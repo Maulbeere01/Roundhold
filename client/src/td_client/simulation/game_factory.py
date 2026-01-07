@@ -199,6 +199,7 @@ class GameFactory:
         game.ui_state.tower_build_mode = False
         game.ui_state.hover_tile = None
         game.ui_state.local_towers = {}
+        game.ui_state.local_gold_mines = {}
 
         unit_types = ["standard", "pawn", "archer"]
         btn_width = 100
@@ -216,3 +217,21 @@ class GameFactory:
             game.ui_state.unit_selection_buttons.append((rect, u_type))
 
         game.ui_state.selected_unit_type = "standard"
+        
+        # Building type selection buttons (above tower button)
+        building_types = ["standard", "wood_tower", "gold_mine"]
+        bldg_btn_width = 90
+        bldg_btn_height = 35
+        bldg_gap = 5
+        
+        # Position building buttons above the tower button
+        bldg_y_start = tower_button_y - bldg_btn_height * len(building_types) - bldg_gap * (len(building_types) - 1) - 10
+        
+        game.ui_state.building_selection_buttons = []
+        for i, b_type in enumerate(building_types):
+            bldg_x = tower_button_x + (tower_button_w - bldg_btn_width) // 2
+            bldg_y = bldg_y_start + i * (bldg_btn_height + bldg_gap)
+            rect = pygame.Rect(bldg_x, bldg_y, bldg_btn_width, bldg_btn_height)
+            game.ui_state.building_selection_buttons.append((rect, b_type))
+        
+        game.ui_state.selected_building_type = "standard"

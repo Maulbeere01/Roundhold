@@ -13,24 +13,87 @@ class TemplateManager:
         self._unit_templates: dict[
             tuple[str, PlayerID], dict[str, list[pygame.Surface]]
         ] = {}
-        self._tower_templates: dict[str, pygame.Surface] = {}
+        self._tower_templates: dict[tuple[str, PlayerID], pygame.Surface] = {}
+        self._wood_tower_frames: dict[PlayerID, list[pygame.Surface]] = {}
+        self._gold_mine_images: dict[str, pygame.Surface] = {}
 
     def preload_templates(self) -> None:
         """Preload static templates that are not player dependent."""
         self._load_tower_templates()
+        self._load_wood_tower_frames()
+        self._load_gold_mine_images()
 
     def _load_tower_templates(self) -> None:
         """Load real tower images instead of drawing rectangles."""
-        # Load the blue tower image
+        # Load tower images for both players
         # Using scale_factor=0.5 because the original assets are quite large
-        img = self.asset_loader.load_image(
+        tower_blue = self.asset_loader.load_image(
             self.asset_loader.paths.tower_blue,
             scale_factor=0.5,
         )
-        self._tower_templates["standard"] = img
+        tower_red = self.asset_loader.load_image(
+            self.asset_loader.paths.tower_red,
+            scale_factor=0.5,
+        )
+        # Player A gets blue, Player B gets red (matching castle colors)
+        self._tower_templates[("standard", "A")] = tower_blue
+        self._tower_templates[("standard", "B")] = tower_red
+    
+    def _load_wood_tower_frames(self) -> None:
+        """Load wood tower animated frames (4 frames in 1 row)."""
+        try:
+            # Load blue wood tower frames for Player A
+            self._wood_tower_frames["A"] = self.asset_loader.load_spritesheet(
+                self.asset_loader.paths.wood_tower_blue,
+                frame_count=4,
+                direction="horizontal",
+                scale_factor=0.5,
+            )
+            # Load red wood tower frames for Player B
+            self._wood_tower_frames["B"] = self.asset_loader.load_spritesheet(
+                self.asset_loader.paths.wood_tower_red,
+                frame_count=4,
+                direction="horizontal",
+                scale_factor=0.5,
+            )
+        except Exception as e:
+            print(f"Error loading wood tower frames: {e}")
+            # Create fallback frames
+            fallback = pygame.Surface((40, 60))
+            fallback.fill((139, 90, 43))  # Brown color
+            self._wood_tower_frames["A"] = [fallback]
+            self._wood_tower_frames["B"] = [fallback]
+    
+    def _load_gold_mine_images(self) -> None:
+        """Load gold mine active and inactive images."""
+        try:
+            self._gold_mine_images["active"] = self.asset_loader.load_image(
+                self.asset_loader.paths.gold_mine_active,
+                scale_factor=0.5,
+            )
+            self._gold_mine_images["inactive"] = self.asset_loader.load_image(
+                self.asset_loader.paths.gold_mine_inactive,
+                scale_factor=0.5,
+            )
+        except Exception as e:
+            print(f"Error loading gold mine images: {e}")
+            # Create fallback
+            fallback = pygame.Surface((40, 40))
+            fallback.fill((255, 215, 0))  # Gold color
+            self._gold_mine_images["active"] = fallback
+            self._gold_mine_images["inactive"] = fallback
+    
+    def get_wood_tower_frames(self, player_id: PlayerID) -> list[pygame.Surface]:
+        """Get animated frames for wood tower by player."""
+        return self._wood_tower_frames.get(player_id, self._wood_tower_frames.get("A", []))
+    
+    def get_gold_mine_images(self) -> dict[str, pygame.Surface]:
+        """Get gold mine active and inactive images."""
+        return self._gold_mine_images
 
-    def get_tower_template(self, tower_type: str) -> pygame.Surface | None:
-        return self._tower_templates.get(tower_type)
+    def get_tower_template(self, tower_type: str, player_id: PlayerID = "A") -> pygame.Surface | None:
+        """Get tower template for a specific tower type and player."""
+        return self._tower_templates.get((tower_type, player_id))
 
     def get_unit_template(
         self, unit_type: str, player_id: PlayerID
@@ -239,6 +302,18 @@ class TemplateManager:
                 )
             except Exception:
                 print("Failed to load Explosion")
+        
+        elif effect_name == "gold_spawn":
+            # G_Spawn.png has 7 frames in one row
+            try:
+                frames = self.asset_loader.load_spritesheet(
+                    self.asset_loader.paths.gold_spawn,
+                    frame_count=7,
+                    direction="horizontal",
+                    scale_factor=0.8,  # Keep it small and subtle
+                )
+            except Exception:
+                print("Failed to load Gold Spawn effect")
 
         # Fallback if loading failed
         if not frames:

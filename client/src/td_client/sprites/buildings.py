@@ -223,3 +223,186 @@ class MannedTowerSprite(BuildingSprite):
                 archer_flash = self.archer.image.copy()
                 archer_flash.fill((200, 30, 30), special_flags=pygame.BLEND_RGB_ADD)
                 surface.blit(archer_flash, archer_rect)
+
+
+class AnimatedTowerSprite(BuildingSprite):
+    """An animated tower (like the Wood Tower) with an archer on top.
+    
+    The tower itself has animation frames, plus an archer unit standing on top.
+    """
+
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        tower_frames: List[pygame.Surface],
+        archer_anims: Dict[str, List[pygame.Surface]],
+        player_id: str = "A", 
+        entity_id: int = -1,
+        range_px: float = 0.0,
+        archer_offset_y: int = -35,
+        tower_fps: float = 8.0,
+    ):
+        # Use first frame as initial image
+        super().__init__(x, y, tower_frames[0], entity_id, range_px)
+        
+        self.tower_frames = tower_frames
+        self.current_tower_frame = 0
+        self.tower_animation_time = 0.0
+        self.tower_frame_duration = 1.0 / tower_fps
+        
+        self.archer_anims = archer_anims
+        self.archer_offset_y = archer_offset_y
+        self.archer_alive = True 
+
+        # Position archer on top of tower
+        archer_x = x
+        archer_y = self.rect.bottom + archer_offset_y
+        
+        # Initialize with Idle
+        self.archer = AnimatedSprite(
+            archer_x, archer_y, 
+            frames=archer_anims["idle"], 
+            fps=10.0
+        )
+        
+        self.state = "idle"
+        self.facing_right = (player_id == "A")
+
+    def update_facing(self, target_x: float, target_y: float):
+        """Determine direction based on target position."""
+        dx = target_x - self.rect.centerx
+        dy = target_y - self.rect.centery
+        
+        if dx < 0:
+            self.facing_right = False
+        else:
+            self.facing_right = True
+
+        abs_dx = abs(dx)
+        abs_dy = abs(dy)
+        
+        new_state = "idle"
+        
+        if abs_dx > abs_dy:
+            new_state = "atk_side"
+        else:
+            if dy > 0:
+                new_state = "atk_down"
+            else:
+                new_state = "atk_up"
+        
+        if self.state != new_state:
+            self.state = new_state
+            self.archer.frames = self.archer_anims[new_state]
+            self.archer.current_frame_index = 0
+
+    def reset_to_idle(self):
+        """Reset to idle animation, but keep default facing direction."""
+        if self.state != "idle":
+            self.state = "idle"
+            self.archer.frames = self.archer_anims["idle"]
+            self.archer.current_frame_index = 0
+
+    def update_animation(self, dt: float):
+        """Update both tower and archer animations."""
+        # Update tower animation
+        if len(self.tower_frames) > 1:
+            self.tower_animation_time += dt
+            if self.tower_animation_time >= self.tower_frame_duration:
+                self.tower_animation_time = 0.0
+                self.current_tower_frame = (self.current_tower_frame + 1) % len(self.tower_frames)
+                old_midbottom = self.rect.midbottom
+                self.image = self.tower_frames[self.current_tower_frame]
+                self.rect = self.image.get_rect(midbottom=old_midbottom)
+        
+        # Update archer animation
+        if not self.archer_alive:
+            return
+
+        self.archer.update_animation(dt)
+
+        current_frame = self.archer.frames[self.archer.current_frame_index]
+        if not self.facing_right:
+            self.archer.image = pygame.transform.flip(current_frame, True, False)
+        else:
+            self.archer.image = current_frame
+
+    def kill_archer(self) -> tuple[float, float] | None:
+        """Kills the archer and returns their center position for effects."""
+        if not self.archer_alive:
+            return None
+            
+        self.archer_alive = False
+        return self.archer.rect.center
+
+    def draw_on(self, surface: pygame.Surface):
+        """Draw tower then archer with hit effect."""
+        jitter = 0
+        if self.hit_flash_timer > 0:
+            jitter = max(2, int(4 * (self.hit_flash_timer / self.HIT_FLASH_TIME)))
+        offset_x = random.randint(-jitter, jitter) if jitter else 0
+        offset_y = random.randint(-jitter, jitter) if jitter else 0
+
+        dest_rect = self.rect.move(offset_x, offset_y)
+        surface.blit(self.image, dest_rect)
+
+        if self.hit_flash_timer > 0:
+            flash = self.image.copy()
+            flash.fill((200, 30, 30), special_flags=pygame.BLEND_RGB_ADD)
+            surface.blit(flash, dest_rect)
+
+        if self.archer_alive:
+            archer_rect = self.archer.image.get_rect(midbottom=self.archer.rect.midbottom)
+            archer_rect = archer_rect.move(offset_x, offset_y)
+            surface.blit(self.archer.image, archer_rect)
+            
+            if self.hit_flash_timer > 0:
+                archer_flash = self.archer.image.copy()
+                archer_flash.fill((200, 30, 30), special_flags=pygame.BLEND_RGB_ADD)
+                surface.blit(archer_flash, archer_rect)
+
+
+class GoldMineSprite(BuildingSprite):
+    """A gold mine building that switches between active/inactive states.
+    
+    Active during preparation phase, inactive during combat phase.
+    """
+
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        active_image: pygame.Surface,
+        inactive_image: pygame.Surface,
+        entity_id: int = -1,
+    ):
+        super().__init__(x, y, active_image, entity_id, range_px=0.0)
+        
+        self.active_image = active_image
+        self.inactive_image = inactive_image
+        self.is_active = True  # Start as active (preparation phase)
+    
+    def set_active(self, active: bool) -> None:
+        """Set the gold mine to active or inactive state."""
+        if self.is_active != active:
+            self.is_active = active
+            old_midbottom = self.rect.midbottom
+            self.image = self.active_image if active else self.inactive_image
+            self.rect = self.image.get_rect(midbottom=old_midbottom)
+    
+    def draw_on(self, surface: pygame.Surface):
+        """Draw gold mine with hit effect if active."""
+        jitter = 0
+        if self.hit_flash_timer > 0:
+            jitter = max(2, int(4 * (self.hit_flash_timer / self.HIT_FLASH_TIME)))
+        offset_x = random.randint(-jitter, jitter) if jitter else 0
+        offset_y = random.randint(-jitter, jitter) if jitter else 0
+
+        dest_rect = self.rect.move(offset_x, offset_y)
+        surface.blit(self.image, dest_rect)
+
+        if self.hit_flash_timer > 0:
+            flash = self.image.copy()
+            flash.fill((200, 30, 30), special_flags=pygame.BLEND_RGB_ADD)
+            surface.blit(flash, dest_rect)

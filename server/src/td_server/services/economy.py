@@ -35,8 +35,12 @@ class EconomyManager:
 
     def apply_round_result(self, result: RoundResultData) -> None:
         """Update lives/gold according to authoritative round result."""
-        self.lose_lives("A", result["lives_lost_player_A"])
-        self.lose_lives("B", result["lives_lost_player_B"])
-        self.add_gold("A", result["gold_earned_player_A"])
-        self.add_gold("B", result["gold_earned_player_B"])
+        # Apply operations using functional mapping
+        operations = [
+            (self.lose_lives, "A", result["lives_lost_player_A"]),
+            (self.lose_lives, "B", result["lives_lost_player_B"]),
+            (self.add_gold, "A", result["gold_earned_player_A"]),
+            (self.add_gold, "B", result["gold_earned_player_B"]),
+        ]
+        list(map(lambda op: op[0](op[1], op[2]), operations))
 

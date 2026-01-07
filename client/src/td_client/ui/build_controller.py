@@ -125,14 +125,21 @@ class BuildController:
                 self._request_send_units(game, idx)
                 return
 
-         # Priority 2: Unit Selection Buttons (Bottom)
+         # Priority 3: Unit Selection Buttons (Bottom)
         for rect, u_type in game.ui_state.unit_selection_buttons:
             if rect.collidepoint(mx, my):
                 game.ui_state.selected_unit_type = u_type
                 logger.info(f"Selected unit type: {u_type}")
                 return
+        
+        # Priority 4: Building Selection Buttons
+        for rect, b_type in game.ui_state.building_selection_buttons:
+            if rect.collidepoint(mx, my):
+                game.ui_state.selected_building_type = b_type
+                logger.info(f"Selected building type: {b_type}")
+                return
 
-        # Priority 4: Tower placement (if in build mode)
+        # Priority 5: Tower placement (if in build mode)
         if game.ui_state.tower_build_mode:
             self._request_build_tower(game, mx, my)
 
@@ -169,16 +176,10 @@ class BuildController:
         # Optimistic gold deduction
         game.player_state.my_gold -= unit_cost
         
-        # Trigger gold change animation
-        import time
-        gold_text_x = 150 if game.player_id == "A" else game.display_manager.screen_width - 150
-        game.ui_state.floating_gold_texts.append({
-            'amount': -unit_cost,
-            'x': gold_text_x,
-            'y': 30,
-            'start_time': time.time()
-        })
-        game.ui_state.gold_display_scale = 1.3  # Pulse effect
+        # Trigger green flash on gold display
+        game.ui_state.gold_flash_timer = 0.5
+        game.ui_state.gold_flash_color = (255, 100, 100)  # Red flash for spend
+        game.ui_state.gold_display_scale = 1.2  # Pulse effect
         
         logger.info(
             f"Barracks button clicked: route {route}. Optimistically deducted {unit_cost} gold."
@@ -211,6 +212,11 @@ class BuildController:
 
     def _request_build_tower(self, game, mx: int, my: int) -> None:
         """Request to build tower - publishes event, does NOT call network directly."""
+        # Can only build during preparation phase
+        if not game.phase_state.in_preparation:
+            logger.warning("Cannot build during combat phase")
+            return
+        
         my_map, my_grid = self._get_my_map_and_grid(game)
         if not my_map.rect.collidepoint(mx, my):
             return
@@ -218,7 +224,14 @@ class BuildController:
         local_x = mx - my_map.rect.x
         local_y = my - my_map.rect.y
         row, col = my_grid.pixel_to_grid_coords(local_x, local_y)
-        tower_cost = int(TOWER_STATS["standard"]["cost"])
+        
+        # Get the selected building type
+        building_type = game.ui_state.selected_building_type
+        tower_stats = TOWER_STATS.get(building_type)
+        if not tower_stats:
+            logger.warning("Unknown building type: %s", building_type)
+            return
+        tower_cost = int(tower_stats["cost"])
 
         # Validation: Check if tile is buildable
         if not my_grid.is_buildable(row, col):
@@ -237,27 +250,23 @@ class BuildController:
         # Capture state before build attempt for rollback
         was_empty = True  # We already validated it's buildable
         sprite_existed = (game.player_id, row, col) in game.ui_state.local_towers
+        if building_type == "gold_mine":
+            sprite_existed = (game.player_id, row, col) in game.ui_state.local_gold_mines
 
         # Optimistic updates
         game.player_state.my_gold -= tower_cost
         
-        # Trigger gold change animation
-        import time
-        gold_text_x = 150 if game.player_id == "A" else game.display_manager.screen_width - 150
-        game.ui_state.floating_gold_texts.append({
-            'amount': -tower_cost,
-            'x': gold_text_x,
-            'y': 30,
-            'start_time': time.time()
-        })
-        game.ui_state.gold_display_scale = 1.3  # Pulse effect
+        # Trigger green flash on gold display
+        game.ui_state.gold_flash_timer = 0.5
+        game.ui_state.gold_flash_color = (255, 100, 100)  # Red flash for spend
+        game.ui_state.gold_display_scale = 1.2  # Pulse effect
         
         my_grid.place_tower(row, col)
-        sprite_created = self.spawn_tower(game.player_id, row, col, "standard")
+        sprite_created = self.spawn_tower(game.player_id, row, col, building_type)
         
         logger.info(
-            "Placing tower at (%d,%d), sending request... (sprite existed: %s, created: %s)",
-            row, col, sprite_existed, sprite_created,
+            "Placing %s at (%d,%d), sending request... (sprite existed: %s, created: %s)",
+            building_type, row, col, sprite_existed, sprite_created,
         )
 
         # Publish gold changed event
@@ -275,7 +284,7 @@ class BuildController:
             self.event_bus.publish(
                 RequestBuildTowerEvent(
                     player_id=game.player_id,
-                    tower_type="standard",
+                    tower_type=building_type,
                     tile_row=row,
                     tile_col=col,
                     was_empty=was_empty,
@@ -300,20 +309,15 @@ class BuildController:
 
         logger.warning("BuildTower rejected at (%d,%d), rolling back", event.tile_row, event.tile_col)
         
-        # Rollback gold
-        tower_cost = int(TOWER_STATS["standard"]["cost"])
+        # Rollback gold based on the tower type that was attempted
+        tower_stats = TOWER_STATS.get(event.tower_type, TOWER_STATS["standard"])
+        tower_cost = int(tower_stats["cost"])
         self.game.player_state.my_gold += tower_cost
         
-        # Trigger gold gain animation (refund)
-        import time
-        gold_text_x = 150 if self.game.player_id == "A" else self.game.display_manager.screen_width - 150
-        self.game.ui_state.floating_gold_texts.append({
-            'amount': tower_cost,
-            'x': gold_text_x,
-            'y': 30,
-            'start_time': time.time()
-        })
-        self.game.ui_state.gold_display_scale = 1.3  # Pulse effect
+        # Trigger green flash on gold display (refund)
+        self.game.ui_state.gold_flash_timer = 0.5
+        self.game.ui_state.gold_flash_color = (100, 255, 100)  # Green flash for gain
+        self.game.ui_state.gold_display_scale = 1.2  # Pulse effect
         
         if self.event_bus:
             self.event_bus.publish(
@@ -326,8 +330,8 @@ class BuildController:
 
         # Rollback sprite if we created it
         if not event.sprite_existed:
-            self.remove_tower(self.game.player_id, event.tile_row, event.tile_col)
-            logger.info("Rolled back tower at (%d,%d) - removed sprite", event.tile_row, event.tile_col)
+            self.remove_tower(self.game.player_id, event.tile_row, event.tile_col, event.tower_type)
+            logger.info("Rolled back %s at (%d,%d) - removed sprite", event.tower_type, event.tile_row, event.tile_col)
 
         # Rollback grid if it was empty
         if event.was_empty:
@@ -374,8 +378,13 @@ class BuildController:
         """Spawn a tower sprite. Returns True if new sprite was created."""
         key = (player_id, row, col)
         
-        if key in self.game.ui_state.local_towers:
-            return False  # Sprite already exists
+        # Check if sprite already exists in appropriate dict
+        if tower_type == "gold_mine":
+            if key in self.game.ui_state.local_gold_mines:
+                return False
+        else:
+            if key in self.game.ui_state.local_towers:
+                return False
         
         tmap = self.game.terrain_map
         tower_info = TOWER_STATS.get(tower_type)
@@ -384,20 +393,18 @@ class BuildController:
         x = tmap.rect.x + col * TILE_SIZE_PX + TILE_SIZE_PX / 2.0
         y = tmap.rect.y + row * TILE_SIZE_PX + TILE_SIZE_PX
         
-        image = self.game.render_manager.template_manager.get_tower_template(tower_type)
-        if image is None:
-            return False
-            
+        tm = self.game.render_manager.template_manager
         sprite = None
 
         if tower_type == "standard":
             from ..sprites.buildings import MannedTowerSprite
             
-            # 1. Fetch Animations
-            tm = self.game.render_manager.template_manager
+            image = tm.get_tower_template(tower_type, player_id)
+            if image is None:
+                return False
+            
             archer_anims = tm.get_unit_template("archer", player_id)
             
-            # 2. Create Manned Sprite
             sprite = MannedTowerSprite(
                 x=x, y=y, 
                 image=image, 
@@ -406,23 +413,74 @@ class BuildController:
                 range_px=range_px
             )
             
-            # 3. Register with Animation Manager (Crucial for it to appear/animate immediately)
             self.game.render_manager.animation_manager.register(sprite)
+            self.game.render_manager.buildings.add(sprite)
+            self.game.ui_state.local_towers[key] = sprite
+            
+        elif tower_type == "wood_tower":
+            from ..sprites.buildings import AnimatedTowerSprite
+            
+            tower_frames = tm.get_wood_tower_frames(player_id)
+            if not tower_frames:
+                return False
+            
+            archer_anims = tm.get_unit_template("archer", player_id)
+            
+            sprite = AnimatedTowerSprite(
+                x=x, y=y,
+                tower_frames=tower_frames,
+                archer_anims=archer_anims,
+                player_id=player_id,
+                range_px=range_px,
+                archer_offset_y=-30,  # Slightly different offset for wood tower
+            )
+            
+            self.game.render_manager.animation_manager.register(sprite)
+            self.game.render_manager.buildings.add(sprite)
+            self.game.ui_state.local_towers[key] = sprite
+            
+        elif tower_type == "gold_mine":
+            from ..sprites.buildings import GoldMineSprite
+            
+            gold_mine_images = tm.get_gold_mine_images()
+            if not gold_mine_images:
+                return False
+            
+            sprite = GoldMineSprite(
+                x=x, y=y,
+                active_image=gold_mine_images["active"],
+                inactive_image=gold_mine_images["inactive"],
+            )
+            
+            # Set mine inactive if currently in combat phase
+            if self.game.phase_state.in_combat:
+                sprite.set_active(False)
+            
+            self.game.render_manager.buildings.add(sprite)
+            self.game.ui_state.local_gold_mines[key] = sprite
         else:
             # Fallback for other towers (static)
             from ..sprites.buildings import BuildingSprite
+            image = tm.get_tower_template(tower_type, player_id)
+            if image is None:
+                return False
             sprite = BuildingSprite(x=x, y=y, image=image, range_px=range_px)
+            self.game.render_manager.buildings.add(sprite)
+            self.game.ui_state.local_towers[key] = sprite
 
-        self.game.render_manager.buildings.add(sprite)
-        self.game.ui_state.local_towers[key] = sprite
         return True
 
-    def remove_tower(self, player_id: str, row: int, col: int) -> None:
+    def remove_tower(self, player_id: str, row: int, col: int, tower_type: str = "standard") -> None:
         """Remove a tower sprite."""
         key = (player_id, row, col)
-        sprite = self.game.ui_state.local_towers.pop(key, None)
+        
+        if tower_type == "gold_mine":
+            sprite = self.game.ui_state.local_gold_mines.pop(key, None)
+        else:
+            sprite = self.game.ui_state.local_towers.pop(key, None)
+        
         if sprite:
-            # If it was animated (MannedTowerSprite), we must unregister it
+            # If it was animated, we must unregister it
             if hasattr(sprite, "update_animation"):
                  self.game.render_manager.animation_manager.unregister(sprite)
             

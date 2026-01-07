@@ -2,7 +2,7 @@ from typing import TypedDict
 
 # Global round/game pacing
 DEFAULT_TICK_RATE: int = 20
-PREP_SECONDS: float = 20.0
+PREP_SECONDS: float = 40.0
 COMBAT_SECONDS: float = 120.0
 
 PLAYER_A: str = "A"
@@ -13,7 +13,7 @@ ROUND_ACK_TIMEOUT: float = 120.0
 
 # Player economy
 PLAYER_LIVES: int = 20
-START_GOLD: int = 100
+START_GOLD: int = 500
 GOLD_PER_KILL: int = 1
 
 
@@ -57,6 +57,20 @@ TOWER_STATS: dict[str, TowerStats] = {
         "damage": 25,
         "range_px": 120.0,
         "cooldown_ticks": 10,
+    },
+    # Wood tower - cheaper, weaker version of the standard tower
+    "wood_tower": {
+        "cost": 10,
+        "damage": 15,
+        "range_px": 90.0,
+        "cooldown_ticks": 15,
+    },
+    # Gold mine - generates gold at the start of each preparation phase
+    "gold_mine": {
+        "cost": 30,
+        "damage": 0,
+        "range_px": 0.0,
+        "cooldown_ticks": 0,
     },
     # Built-in defensive tower for each player's castle.
     # Not placeable by players; exists by default each round.

@@ -44,13 +44,25 @@ class HUDRenderer:
             game.ui_state.gold_display_scale = max(1.0, game.ui_state.gold_display_scale - 3.0 * (1/60))  # Decay over time
         game.ui_state.gold_display_scale += (target_scale - game.ui_state.gold_display_scale) * 0.15
         
+        # Decay gold flash timer
+        if game.ui_state.gold_flash_timer > 0:
+            game.ui_state.gold_flash_timer = max(0, game.ui_state.gold_flash_timer - (1/60))
+        
+        # Calculate gold text color based on flash timer (supports gain or loss)
+        flash_progress = game.ui_state.gold_flash_timer / 0.5 if game.ui_state.gold_flash_timer > 0 else 0
+        base_color = game.ui_state.gold_flash_color or (255, 255, 255)
+        gold_color = tuple(
+            int(base_color[i] * flash_progress + 255 * (1 - flash_progress))
+            for i in range(3)
+        )
+        
         # Render gold text with scale effect
         gold_font_size = int(28 * game.ui_state.gold_display_scale)
         gold_font = pygame.font.Font(None, gold_font_size)
         my_hud = gold_font.render(
             f"Gold: {game.player_state.my_gold}   Lives: {game.player_state.my_lives}",
             True,
-            (255, 255, 255),
+            gold_color,
         )
         opp_hud = font.render(
             f"Opponent Lives: {game.player_state.opponent_lives}", True, (255, 200, 200)
@@ -142,11 +154,14 @@ class HUDRenderer:
             pygame.draw.rect(
                 surface, (200, 255, 200), game.ui_state.tower_button, width=2, border_radius=10
             )
-        tower_label = font.render("Tower", True, (255, 255, 255))
+        tower_label = font.render("Build", True, (255, 255, 255))
         tower_label_rect = tower_label.get_rect(
             center=game.ui_state.tower_button.center
         )
         surface.blit(tower_label, tower_label_rect)
+        
+        # 4b. Building selection buttons (above tower button)
+        self._render_building_selection_buttons(surface, game, font, mx, my)
 
         # 5. Timers
         timer_font = pygame.font.Font(None, 32)
@@ -350,6 +365,69 @@ class HUDRenderer:
                 game.sim_state.render_manager.animation_manager.register(preview_sprite)
                 game.ui_state.route_preview_sprites.append(preview_sprite)
 
+    def _render_building_selection_buttons(
+        self, surface: pygame.Surface, game, font: pygame.font.Font, mx: int, my: int
+    ) -> None:
+        """Render building selection buttons above the build button."""
+        from td_shared.game import TOWER_STATS
+        
+        building_selection_buttons = getattr(game.ui_state, "building_selection_buttons", [])
+        if not building_selection_buttons:
+            return
+        
+        # Building display names
+        building_names = {
+            "standard": "Tower",
+            "wood_tower": "Wood",
+            "gold_mine": "Mine",
+        }
+        
+        for rect, b_type in building_selection_buttons:
+            is_selected = b_type == game.ui_state.selected_building_type
+            is_hovered = rect.collidepoint(mx, my)
+            
+            # Colors based on building type - darker colors with good contrast
+            if b_type == "gold_mine":
+                base_color = (120, 100, 30)
+                hover_color = (160, 130, 50)
+                selected_color = (100, 80, 20)  # Darker for selected, text will be bright
+                text_color = (255, 255, 200)  # Bright text for gold mine
+            elif b_type == "wood_tower":
+                base_color = (100, 65, 30)
+                hover_color = (140, 90, 45)
+                selected_color = (80, 50, 20)
+                text_color = (255, 255, 255)
+            else:  # standard
+                base_color = (60, 60, 120)
+                hover_color = (100, 100, 180)
+                selected_color = (40, 120, 40)
+                text_color = (255, 255, 255)
+            
+            if is_selected:
+                color = selected_color
+                border_color = (255, 255, 255)
+            elif is_hovered:
+                color = hover_color
+                border_color = (200, 200, 255)
+            else:
+                color = base_color
+                border_color = (100, 100, 100)
+            
+            pygame.draw.rect(surface, color, rect, border_radius=4)
+            pygame.draw.rect(surface, border_color, rect, width=2, border_radius=4)
+            
+            # Building name - use specific text color for readability
+            name_text = building_names.get(b_type, b_type.capitalize())
+            name_surf = font.render(name_text, True, text_color)
+            name_rect = name_surf.get_rect(center=(rect.centerx, rect.centery - 6))
+            surface.blit(name_surf, name_rect)
+            
+            # Cost - always bright gold/white for visibility
+            cost = TOWER_STATS.get(b_type, {}).get("cost", "?")
+            cost_surf = font.render(f"${cost}", True, (255, 255, 100))
+            cost_rect = cost_surf.get_rect(center=(rect.centerx, rect.centery + 8))
+            surface.blit(cost_surf, cost_rect)
+
     def _draw_unit_tooltip(
         self, surface: pygame.Surface, mx: int, my: int, unit_type: str
     ) -> None:
@@ -426,91 +504,130 @@ class HUDRenderer:
             y_offset += line_height
 
     def _render_floating_gold_texts(self, surface: pygame.Surface, game) -> None:
-        """Render and update floating gold change indicators."""
-        import time
-        current_time = time.time()
+        """Render floating gold indicators at mine positions only."""
+        # Clear any legacy HUD floating gold texts that shouldn't exist
+        if game.ui_state.floating_gold_texts:
+            game.ui_state.floating_gold_texts.clear()
         
-        # Update and render each floating text
-        for text_data in list(game.ui_state.floating_gold_texts):
-            elapsed = current_time - text_data['start_time']
-            duration = 1.5  # 1.5 seconds lifetime
-            
-            if elapsed > duration:
-                game.ui_state.floating_gold_texts.remove(text_data)
-                continue
-            
-            # Calculate animation properties
-            progress = elapsed / duration
-            alpha = int(255 * (1 - progress))  # Fade out
-            y_offset = -30 - (progress * 40)  # Float upward
-            scale = 1.0 + (0.3 * (1 - abs(progress - 0.15) / 0.15)) if progress < 0.3 else 1.0  # Quick scale at start
-            
-            # Render text with size based on scale
-            font_size = int(32 * scale)
-            font = pygame.font.Font(None, font_size)
-            
-            # Color based on gain/loss
-            if text_data['amount'] > 0:
-                color = (100, 255, 100)  # Green for gain
-                text = f"+{text_data['amount']}"
-            else:
-                color = (255, 100, 100)  # Red for loss
-                text = f"{text_data['amount']}"
-            
-            # Render text
-            text_surf = font.render(text, True, color)
-            text_surf.set_alpha(alpha)
-            
-            # Position near gold display
-            x = text_data['x']
-            y = text_data['y'] + y_offset
-            
-            surface.blit(text_surf, (x, y))
+        # Render only mine gold texts (white->gold->green transition)
+        self._render_floating_mine_gold_texts(surface, game)
 
-    def _render_floating_damage_texts(self, surface: pygame.Surface, game) -> None:
-        """Render and update floating damage indicators with white-to-red color transition."""
+    def _render_floating_mine_gold_texts(self, surface: pygame.Surface, game) -> None:
+        """Render floating gold indicators at mine positions with white-to-green transition."""
         import time
         current_time = time.time()
         
-        # Update and render each floating damage text
-        for text_data in list(game.ui_state.floating_damage_texts):
+        for text_data in list(game.ui_state.floating_mine_gold_texts):
             elapsed = current_time - text_data['start_time']
-            duration = 1.0  # 1 second lifetime
+            duration = 1.5  # 1.5 second lifetime for better visibility
             
             if elapsed > duration:
-                game.ui_state.floating_damage_texts.remove(text_data)
+                game.ui_state.floating_mine_gold_texts.remove(text_data)
                 continue
             
             # Calculate animation properties
             progress = elapsed / duration
-            alpha = int(255 * (1 - progress))  # Fade out
+            alpha = int(255 * (1 - progress * 0.7))  # Slower fade out
             y_offset = -(progress * 50)  # Float upward
             
-            # Scale effect - quick pop at start
-            if progress < 0.2:
-                scale = 1.0 + (0.4 * (1 - progress / 0.2))
+            # Scale effect - quick pop at start, then settle
+            if progress < 0.15:
+                scale = 1.0 + (0.5 * (1 - progress / 0.15))
             else:
                 scale = 1.0
             
-            # Color transition from white to red (ease effect)
-            # Start white (255, 255, 255), end red (255, 50, 50)
-            ease_progress = min(1.0, progress * 2)  # Faster color transition
-            r = 255
-            g = int(255 * (1 - ease_progress) + 50 * ease_progress)
-            b = int(255 * (1 - ease_progress) + 50 * ease_progress)
+            # Color transition from bright gold to green
+            # Start gold (255, 215, 0), end green (50, 255, 50)
+            ease_progress = min(1.0, progress * 1.5)
+            r = int(255 * (1 - ease_progress) + 50 * ease_progress)
+            g = int(215 + (255 - 215) * ease_progress)
+            b = int(0 * (1 - ease_progress) + 50 * ease_progress)
             color = (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
             
-            # Render damage number
-            font_size = int(22 * scale)  # Smaller than gold text
+            # Render gold amount with larger, bolder font
+            font_size = int(24 * scale)  # Bigger font for readability
             font = pygame.font.Font(None, font_size)
-            text_surf = font.render(str(text_data['amount']), True, color)
+            text_surf = font.render(f"+{text_data['amount']}g", True, color)
             text_surf.set_alpha(alpha)
             
-            # Position at damage location
+            # Add outline/shadow for better visibility
+            shadow_surf = font.render(f"+{text_data['amount']}g", True, (0, 0, 0))
+            shadow_surf.set_alpha(alpha // 2)
+            
+            # Position at mine location
             x = text_data['x'] - text_surf.get_width() // 2
             y = text_data['y'] + y_offset
             
+            # Draw shadow first, then text
+            surface.blit(shadow_surf, (x + 1, y + 1))
             surface.blit(text_surf, (x, y))
+
+    def _render_floating_damage_texts(self, surface: pygame.Surface, game) -> None:
+        """Render damage indicators from unit damage with proper validation."""
+        import time
+        
+        current_time = time.time()
+        duration = 1.5
+        
+        # Filter out expired text entries
+        alive_texts = []
+        for text_data in game.ui_state.floating_damage_texts:
+            elapsed = current_time - text_data.get('start_time', current_time)
+            if elapsed < duration:
+                alive_texts.append(text_data)
+            
+        game.ui_state.floating_damage_texts = alive_texts
+        
+        # Render damage texts with color transition and fade out
+        for text_data in game.ui_state.floating_damage_texts:
+            try:
+                elapsed = current_time - text_data.get('start_time', current_time)
+                progress = min(1.0, elapsed / duration)
+                
+                # Color transition: white -> red, clamped to valid range
+                r = 255
+                g = max(0, min(255, int(255 * (1 - progress))))
+                b = max(0, min(255, int(255 * (1 - progress))))
+                color = (r, g, b)
+                
+                # Float upward
+                offset_y = int(progress * 30)
+                
+                # Fade out in last 0.5s
+                alpha = 255
+                if elapsed > 1.0:
+                    fade_progress = min(1.0, (elapsed - 1.0) / 0.5)
+                    alpha = max(0, int(255 * (1 - fade_progress)))
+                
+                # Position validation - reject invalid/off-screen positions
+                x = int(text_data.get('x', -1))
+                y = int(text_data.get('y', -1))
+                
+                if x < 0 or y < 0:
+                    continue
+                
+                y = y - offset_y
+                
+                # Only render if within valid screen bounds
+                if not (50 <= x <= surface.get_width() - 50 and 50 <= y <= surface.get_height() - 50):
+                    continue
+                
+                amount = int(text_data.get('amount', 0))
+                if amount <= 0:
+                    continue
+                
+                font_size = max(12, int(22 * (1 - progress * 0.3)))
+                font = pygame.font.Font(None, font_size)
+                damage_text = font.render(f"-{amount}", True, color)
+                
+                if alpha < 255:
+                    damage_text.set_alpha(alpha)
+                
+                text_rect = damage_text.get_rect(center=(x, y))
+                surface.blit(damage_text, text_rect)
+            except Exception:
+                # Skip any invalid text data entries
+                continue
 
     def _render_arrow_projectiles(self, surface: pygame.Surface, game) -> None:
         """Render and update arrow projectiles flying from towers to targets."""

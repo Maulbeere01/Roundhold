@@ -66,14 +66,14 @@ class SpriteFactory:
         self, entity_id: int, tower_type: str, player_id: str, x: float, y: float, range_px: float
     ) -> BuildingSprite | None:
         
-        image = self.template_manager.get_tower_template(tower_type)
-        if not image:
-            return None
-            
-        # --- MODIFIED LOGIC ---
-        from ..sprites.buildings import BuildingSprite, MannedTowerSprite
+        from ..sprites.buildings import BuildingSprite, MannedTowerSprite, AnimatedTowerSprite, GoldMineSprite
+        
+        sprite = None
         
         if tower_type == "standard":
+            image = self.template_manager.get_tower_template(tower_type, player_id)
+            if not image:
+                return None
             # Get Archer animations for the correct player color
             archer_anims = self.template_manager.get_unit_template("archer", player_id) 
 
@@ -85,8 +85,41 @@ class SpriteFactory:
                 entity_id=entity_id,
                 range_px=range_px
             )
+            self.animation_manager.register(sprite)
+            
+        elif tower_type == "wood_tower":
+            tower_frames = self.template_manager.get_wood_tower_frames(player_id)
+            if not tower_frames:
+                return None
+            archer_anims = self.template_manager.get_unit_template("archer", player_id)
+            
+            sprite = AnimatedTowerSprite(
+                x=x, y=y,
+                tower_frames=tower_frames,
+                archer_anims=archer_anims,
+                player_id=player_id,
+                entity_id=entity_id,
+                range_px=range_px,
+                archer_offset_y=-30,
+            )
+            self.animation_manager.register(sprite)
+            
+        elif tower_type == "gold_mine":
+            gold_mine_images = self.template_manager.get_gold_mine_images()
+            if not gold_mine_images:
+                return None
+            
+            sprite = GoldMineSprite(
+                x=x, y=y,
+                active_image=gold_mine_images["active"],
+                inactive_image=gold_mine_images["inactive"],
+                entity_id=entity_id,
+            )
         else:
             # Normal logic for other towers
+            image = self.template_manager.get_tower_template(tower_type, player_id)
+            if not image:
+                return None
             sprite = BuildingSprite(
                 x=x, y=y, 
                 image=image, 
@@ -94,12 +127,9 @@ class SpriteFactory:
                 range_px=range_px
             )
         
-        self.towers_group.add(sprite)
-        self.tower_sprites[entity_id] = sprite
-        
-        # REGISTER WITH ANIMATION MANAGER! 
-        if isinstance(sprite, MannedTowerSprite):
-            self.animation_manager.register(sprite)
+        if sprite:
+            self.towers_group.add(sprite)
+            self.tower_sprites[entity_id] = sprite
             
         return sprite
 

@@ -56,13 +56,20 @@ class TowerPlacementService:
             tile_col=norm_col,
             level=level,
         )
-
+        
         self._placements.append(placement)
         return self._placement_to_sim_data(placement)
 
     def get_sim_towers(self) -> list[SimTowerData]:
         """Return tower placements as SimTowerData list."""
         return [self._placement_to_sim_data(p) for p in self._placements]
+
+    def count_gold_mines(self, player_id: PlayerID) -> int:
+        """Count the number of gold mines for a given player."""
+        return sum(
+            1 for p in self._placements
+            if p.player_id == player_id and p.tower_type == "gold_mine"
+        )
 
     def _placement_to_sim_data(self, placement: TowerPlacement) -> SimTowerData:
         pos_x, pos_y = tile_to_pixel(placement.tile_row, placement.tile_col)

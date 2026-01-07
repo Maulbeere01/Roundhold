@@ -60,19 +60,25 @@ class UIState:
     barracks_buttons: list[pygame.Rect] = None
     tower_button: pygame.Rect | None = None
     unit_selection_buttons: list[tuple[pygame.Rect, str]] = None # List of (Rect, unit_type)
+    building_selection_buttons: list[tuple[pygame.Rect, str]] = None  # List of (Rect, building_type)
     selected_unit_type: str = "standard" # Default to Warrior
+    selected_building_type: str = "standard"  # Default tower type
     tower_build_mode: bool = False
     hover_tile: tuple[int, int] | None = None
     hovered_route: int | None = None  # Route number (1-5) being hovered, or None
     last_clicked_route: int | None = None  # Last clicked route for visual feedback
     click_time: float = 0.0  # Time when route was last clicked
     local_towers: dict[tuple[str, int, int], BuildingSprite] = None
+    local_gold_mines: dict[tuple[str, int, int], BuildingSprite] = None  # Track gold mines separately
     tower_button_hovered: bool = False
     route_unit_previews: dict[int, list[str]] | None = None
     route_preview_sprites: list = None
     route_preview_sprites: list = None
     floating_gold_texts: list = None  # List of floating gold change indicators
+    floating_mine_gold_texts: list = None  # List of floating gold per mine indicators
     gold_display_scale: float = 1.0  # Scale pulse for gold display
+    gold_flash_timer: float = 0.0  # Timer for gold flash effect
+    gold_flash_color: tuple[int, int, int] | None = None  # Flash color (e.g., green gain, red loss)
     floating_damage_texts: list = None  # List of floating damage indicators
     arrow_projectiles: list = None  # List of active arrow projectiles
 
@@ -82,8 +88,12 @@ class UIState:
             self.barracks_buttons = []
         if self.local_towers is None:
             self.local_towers = {}
+        if self.local_gold_mines is None:
+            self.local_gold_mines = {}
         if self.unit_selection_buttons is None:
             self.unit_selection_buttons = []
+        if self.building_selection_buttons is None:
+            self.building_selection_buttons = []
         if self.route_unit_previews is None:
             self.route_unit_previews = {}
         if self.route_preview_sprites is None:
@@ -92,10 +102,14 @@ class UIState:
             self.route_preview_sprites = []
         if self.floating_gold_texts is None:
             self.floating_gold_texts = []
+        if self.floating_mine_gold_texts is None:
+            self.floating_mine_gold_texts = []
         if self.floating_damage_texts is None:
             self.floating_damage_texts = []
         if self.arrow_projectiles is None:
             self.arrow_projectiles = []
+            if self.gold_flash_color is None:
+                self.gold_flash_color = (255, 255, 255)
 
 
 @dataclass

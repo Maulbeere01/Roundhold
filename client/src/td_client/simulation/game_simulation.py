@@ -157,6 +157,10 @@ class GameSimulation:
             self.sim_state.render_manager._spawned_unit_ids.clear()
         
         self._clear_local_towers()
+        
+        # Set gold mines to inactive during combat phase
+        self._update_gold_mine_states(active=False)
+        
         self.player_state.round_result_received = False
         self.player_state.round_ack_sent = False
         self.player_state.round_base_my_lives = self.player_state.my_lives
@@ -209,30 +213,32 @@ class GameSimulation:
                     castle = self.sim_state.render_manager.castle_A_sprite if self.player_id == "A" else self.sim_state.render_manager.castle_B_sprite
                     if castle and hasattr(castle, 'trigger_hit_effect'):
                         castle.trigger_hit_effect()
-                        # Spawn damage text at castle
+                        # Spawn damage text at castle (only if castle is at valid position)
                         damage = self.player_state.my_lives - my_vis
-                        import time
-                        self.ui_state.floating_damage_texts.append({
-                            'amount': damage,
-                            'x': castle.rect.centerx,
-                            'y': castle.rect.top - 20,
-                            'start_time': time.time()
-                        })
+                        if castle and castle.rect.centery > 50:
+                            import time
+                            self.ui_state.floating_damage_texts.append({
+                                'amount': damage,
+                                'x': castle.rect.centerx,
+                                'y': castle.rect.top - 20,
+                                'start_time': time.time()
+                            })
                 
                 if opp_vis < self.player_state.opponent_lives and opp_vis > 0:
                     # Opponent castle was hit but still alive
                     castle = self.sim_state.render_manager.castle_B_sprite if self.player_id == "A" else self.sim_state.render_manager.castle_A_sprite
                     if castle and hasattr(castle, 'trigger_hit_effect'):
                         castle.trigger_hit_effect()
-                        # Spawn damage text at castle
+                        # Spawn damage text at castle (only if castle is at valid position)
                         damage = self.player_state.opponent_lives - opp_vis
-                        import time
-                        self.ui_state.floating_damage_texts.append({
-                            'amount': damage,
-                            'x': castle.rect.centerx,
-                            'y': castle.rect.top - 20,
-                            'start_time': time.time()
-                        })
+                        if castle and castle.rect.centery > 50:
+                            import time
+                            self.ui_state.floating_damage_texts.append({
+                                'amount': damage,
+                                'x': castle.rect.centerx,
+                                'y': castle.rect.top - 20,
+                                'start_time': time.time()
+                            })
                 
                 self.player_state.my_lives = max(0, my_vis)
                 self.player_state.opponent_lives = max(0, opp_vis)
@@ -285,11 +291,29 @@ class GameSimulation:
     def cleanup(self) -> None:
         """Clean up resources when the game simulation is destroyed."""
         self._clear_local_towers()
+        self._clear_gold_mines()
         logger.info("GameSimulation cleaned up")
 
     # helpers for tower management
     def _clear_local_towers(self) -> None:
         """Remove all locally-spawned tower sprites."""
-        for sprite in self.ui_state.local_towers.values():
-            sprite.kill()
+        list(map(lambda s: s.kill(), self.ui_state.local_towers.values()))
         self.ui_state.local_towers.clear()
+    
+    def _clear_gold_mines(self) -> None:
+        """Remove all locally-spawned gold mine sprites."""
+        list(map(lambda s: s.kill(), self.ui_state.local_gold_mines.values()))
+        self.ui_state.local_gold_mines.clear()
+    
+    def _update_gold_mine_states(self, active: bool) -> None:
+        """Update all gold mines to active or inactive state."""
+        # Update locally placed gold mines
+        for sprite in self.ui_state.local_gold_mines.values():
+            if hasattr(sprite, 'set_active'):
+                sprite.set_active(active)
+        
+        # Also update simulation-side gold mines (opponent's mines)
+        if hasattr(self.sim_state, 'render_manager') and self.sim_state.render_manager:
+            for sprite in self.sim_state.render_manager.sprite_factory.tower_sprites.values():
+                if hasattr(sprite, 'set_active'):
+                    sprite.set_active(active)

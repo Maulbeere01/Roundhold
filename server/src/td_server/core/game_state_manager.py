@@ -195,3 +195,29 @@ class GameStateManager:
         """Clear queued wave data."""
         with self._lock:
             self.wave_queue.clear()
+
+    def generate_gold_from_mines(self) -> dict[str, int]:
+        """Generate gold income from gold mines for both players.
+        
+        Returns dict with gold earned per player.
+        """
+        import random
+        
+        generate_mine_gold = lambda count: sum(random.randint(5, 15) for _ in range(count))
+        
+        with self._lock:
+            gold_earned = {
+                player_id: generate_mine_gold(self.placement.count_gold_mines(player_id))
+                for player_id in ("A", "B")
+            }
+            
+            # Apply gold and log for non-zero earnings
+            for player_id, gold in filter(lambda x: x[1] > 0, gold_earned.items()):
+                self.economy.add_gold(player_id, gold)
+                logger.info(
+                    "Player %s earned %d gold from gold mines",
+                    player_id,
+                    gold,
+                )
+            
+            return gold_earned

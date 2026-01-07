@@ -90,12 +90,14 @@ class UnitSprite(AnimatedSprite):
             damage = self.health_display - health
             if game_ui_state and hasattr(game_ui_state, 'floating_damage_texts'):
                 import time
-                game_ui_state.floating_damage_texts.append({
-                    'amount': int(damage),
-                    'x': self.rect.centerx,
-                    'y': self.rect.top - 10,
-                    'start_time': time.time()
-                })
+                # Only create damage text if unit has valid position (not at origin)
+                if self.rect.centery > 50:  # Avoid phantom texts from invalid positions
+                    game_ui_state.floating_damage_texts.append({
+                        'amount': int(damage),
+                        'x': self.rect.centerx,
+                        'y': self.rect.top - 10,
+                        'start_time': time.time()
+                    })
 
         self.max_health = max_health
         self.health = health

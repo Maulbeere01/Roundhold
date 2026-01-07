@@ -223,6 +223,15 @@ class RoundManager:
 
         self.game_manager.apply_round_result(result)
         self.game_manager.clear_wave_data()
+        
+        # Generate gold from gold mines for next round
+        mine_gold = self.game_manager.generate_gold_from_mines()
+        self._log.info(
+            "Gold mine income: A +%d, B +%d",
+            mine_gold.get("A", 0),
+            mine_gold.get("B", 0),
+        )
+        
         # Defer RoundResult push until after ACKs
         self._pending_round_result = result
 

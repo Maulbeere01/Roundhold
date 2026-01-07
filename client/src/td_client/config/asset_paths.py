@@ -57,7 +57,24 @@ class AssetPaths:
         self.tower_red = (
             self.assets_dir / "Factions/Knights/Buildings/Tower/Tower_Red.png"
         )
+        
+        # WOOD TOWERS (animated, 4 frames in 1 row)
+        self.wood_tower_blue = (
+            self.assets_dir / "Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Blue.png"
+        )
+        self.wood_tower_red = (
+            self.assets_dir / "Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Red.png"
+        )
+        
+        # GOLD MINES
+        self.gold_mine_active = (
+            self.assets_dir / "Resources/Gold Mine/GoldMine_Active.png"
+        )
+        self.gold_mine_inactive = (
+            self.assets_dir / "Resources/Gold Mine/GoldMine_Inactive.png"
+        )
 
         # PARTICLES
         self.spawn_dust = self.assets_dir / "Particles/Dust_02.png"
         self.explosion = self.assets_dir / "Effects/Explosion/Explosions.png"
+        self.gold_spawn = self.assets_dir / "Resources/Resources/G_Spawn.png"

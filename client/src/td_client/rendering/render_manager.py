@@ -376,7 +376,7 @@ class RenderManager:
                 )
             else:
                 sprite = self.tower_sprites[entity_id]
-            if isinstance(sprite, MannedTowerSprite):
+            if isinstance(sprite, MannedTowerSprite) or hasattr(sprite, 'update_facing'):
                 # Check if the sim tower has a target
                 if tower.last_shot_target:
                     # Convert sim target pos to screen pos
@@ -388,7 +388,8 @@ class RenderManager:
                     target_screen_pos = self._sim_to_screen_pos(d)
                     sprite.update_facing(target_screen_pos.x, target_screen_pos.y)
                 else:
-                    sprite.reset_to_idle()
+                    if hasattr(sprite, 'reset_to_idle'):
+                        sprite.reset_to_idle()
 
         self._update_castle_aiming(game_state)
 

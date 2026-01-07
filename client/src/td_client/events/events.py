@@ -145,6 +145,7 @@ class BuildTowerResponseEvent(ServerResponseEvent):
 
     tile_row: int
     tile_col: int
+    tower_type: str = "standard"
     was_empty: bool = True
     sprite_existed: bool = False
 
