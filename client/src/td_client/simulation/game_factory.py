@@ -14,6 +14,8 @@ from td_shared import (
     PlayerID,
 )
 
+from client.src.td_client.audio.audio import AudioService
+
 if TYPE_CHECKING:
     from ..assets import AssetLoader
     from ..config import AssetPaths, GameSettings
@@ -47,6 +49,7 @@ class GameFactory:
         settings: GameSettings,
         player_id: PlayerID,
         network_client: NetworkClient,
+        audio: AudioService,
         event_bus: EventBus | None = None,
     ) -> GameSimulation:
         """Create and fully initialize a GameSimulation instance.
@@ -73,6 +76,7 @@ class GameFactory:
             settings=settings,
             player_id=player_id,
             network_client=network_client,
+            audio=audio,
             event_bus=event_bus,
         )
 

@@ -10,6 +10,8 @@ from td_shared import (
     RoundStartData,
 )
 
+from client.src.td_client.audio.audio import AudioService
+
 from ..assets import AssetLoader
 from ..config import AssetPaths, GameSettings
 from ..display import DisplayManager
@@ -47,6 +49,7 @@ class GameSimulation:
         settings: GameSettings,
         player_id: PlayerID,
         network_client: NetworkClient,
+        audio: AudioService,
         event_bus: EventBus | None = None,
     ):
         # Preconditions
@@ -68,6 +71,7 @@ class GameSimulation:
         self.display_manager = display_manager
         self.player_id: PlayerID = player_id
         self.network_client = network_client
+        self.audio = audio
         self.event_bus = event_bus
 
         # Initialize state containers (will be populated by GameFactory)

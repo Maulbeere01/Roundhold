@@ -81,6 +81,7 @@ class GameScreen(Screen):
             settings=self.app.settings,
             player_id=player_id_typed,
             network_client=self.app.network_client,
+            audio=self.app.audio,
             event_bus=self.app.event_bus,
         )
 

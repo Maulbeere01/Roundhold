@@ -54,7 +54,6 @@ trap cleanup SIGINT SIGTERM EXIT
 
 echo -e "${GREEN}Starting game server and clients...${NC}\n"
 
-# Check for and kill any existing game processes
 EXISTING_SERVER=$(ps aux | grep -E "python.*td_server" | grep -v grep | awk '{print $2}')
 EXISTING_CLIENTS=$(ps aux | grep -E "python.*td_client" | grep -v grep | awk '{print $2}')
 
@@ -65,7 +64,6 @@ if [ ! -z "$EXISTING_SERVER" ] || [ ! -z "$EXISTING_CLIENTS" ]; then
     sleep 1
 fi
 
-# Activate venv
 if [ -d ".venv" ]; then
     echo -e "${YELLOW}Activating virtual environment...${NC}"
     source .venv/bin/activate
@@ -94,15 +92,13 @@ fi
 
 echo -e "${GREEN}Server is running${NC}\n"
 
-# Get absolute WSL path
 WSL_PATH=$(pwd)
 
 WIN_PROJECT_PATH=$(wslpath -w "$(pwd)")
 
-WSL_IP=$(hostname -I | awk '{print $1}' | xargs) # xargs entfernt versteckte Leerzeichen
+WSL_IP=$(hostname -I | awk '{print $1}' | xargs)
 
 echo -e "${YELLOW}Starting client 1 (Windows via PowerShell)...${NC}"
-# Wir setzen die IP explizit ein
 powershell.exe -Command "\$env:TD_SERVER_ADDR='$WSL_IP:42069'; cd '$WIN_PROJECT_PATH'; python -m client.src.td_client.main" &
 CLIENT1_PID=$!
 
