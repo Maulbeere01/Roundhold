@@ -205,73 +205,64 @@ class GameFactory:
 
     @staticmethod
     def _initialize_ui_buttons(game: GameSimulation) -> None:
-        # Barracks buttons
-        sidebar_x = (
-            20 if game.player_id == "A" else game.display_manager.screen_width - 180
-        )
+        sw = game.display_manager.screen_width
+        sh = game.display_manager.screen_height
+
+        # --- 1. BARRACKS BUTTONS (Routen 1-5) ---
+        # Diese Buttons dienen zum Aussenden von Truppen auf die 5 Wege
+        sidebar_x = 20 if game.player_id == "A" else sw - 180
         top_y = 100
-        w, h, pad = 160, 36, 12
+        bw, bh, pad = 160, 36, 12
         game.ui_state.barracks_buttons = [
-            pygame.Rect(sidebar_x, top_y + i * (h + pad), w, h) for i in range(5)
+            pygame.Rect(sidebar_x, top_y + i * (bh + pad), bw, bh) for i in range(5)
         ]
-        logger.info(
-            "Barracks buttons at: %s",
-            [tuple((r.x, r.y, r.w, r.h)) for r in game.ui_state.barracks_buttons],
-        )
 
-        # Tower build button
-        tower_button_w, tower_button_h = 80, 80
-        if game.player_id == "A":
-            tower_button_x = 20
-        else:
-            tower_button_x = game.display_manager.screen_width - tower_button_w - 20
-        tower_button_y = game.display_manager.screen_height - tower_button_h - 20
-        game.ui_state.tower_button = pygame.Rect(
-            tower_button_x, tower_button_y, tower_button_w, tower_button_h
-        )
+        # --- 2. BUILDING SELECTION BUTTONS (Ersatz für den alten Build-Button) ---
+        # Diese Buttons aktivieren nun direkt den Baumodus für den jeweiligen Typ
+        building_types = ["standard", "wood_tower", "gold_mine"]
+        bldg_btn_width = 110
+        bldg_btn_height = 50
+        bldg_gap = 10
 
-        # Build mode state
+        # Positionierung unten links (Player A) oder unten rechts (Player B)
+        # Wir stapeln sie vertikal dort, wo früher der Build-Button war
+        b_start_x = 20 if game.player_id == "A" else sw - bldg_btn_width - 20
+        # Wir rechnen von unten hoch:
+        b_base_y = sh - 70
+
+        game.ui_state.building_selection_buttons = []
+        for i, b_type in enumerate(building_types):
+            # i=0 ist ganz unten, i=2 ist ganz oben im Stapel
+            y_pos = b_base_y - (i * (bldg_btn_height + bldg_gap))
+            rect = pygame.Rect(b_start_x, y_pos, bldg_btn_width, bldg_btn_height)
+            game.ui_state.building_selection_buttons.append((rect, b_type))
+
+        # Den alten Tower-Button setzen wir auf ein leeres Rect, da er nicht mehr gebraucht wird
+        game.ui_state.tower_button = pygame.Rect(0, 0, 0, 0)
+
+        # --- 3. UNIT SELECTION BUTTONS (Zentral unten) ---
+        # Auswahl, welche Einheit bei Klick auf Route gesendet wird
+        unit_types = ["standard", "pawn", "archer"]
+        u_btn_width = 120
+        u_btn_height = 60
+        u_gap = 20
+
+        total_u_width = (len(unit_types) * u_btn_width) + (
+            (len(unit_types) - 1) * u_gap
+        )
+        u_start_x = (sw - total_u_width) // 2
+        u_y_pos = sh - 80
+
+        game.ui_state.unit_selection_buttons = []
+        for i, u_type in enumerate(unit_types):
+            x = u_start_x + i * (u_btn_width + u_gap)
+            rect = pygame.Rect(x, u_y_pos, u_btn_width, u_btn_height)
+            game.ui_state.unit_selection_buttons.append((rect, u_type))
+
+        # --- 4. INITIALER STATUS ---
+        game.ui_state.selected_unit_type = "standard"
+        game.ui_state.selected_building_type = "standard"
         game.ui_state.tower_build_mode = False
         game.ui_state.hover_tile = None
         game.ui_state.local_towers = {}
         game.ui_state.local_gold_mines = {}
-
-        unit_types = ["standard", "pawn", "archer"]
-        btn_width = 100
-        btn_height = 50
-        gap = 20
-
-        total_width = (len(unit_types) * btn_width) + ((len(unit_types) - 1) * gap)
-        start_x = (game.display_manager.screen_width - total_width) // 2
-        y_pos = game.display_manager.screen_height - 70  # Near bottom
-
-        game.ui_state.unit_selection_buttons = []
-        for i, u_type in enumerate(unit_types):
-            x = start_x + i * (btn_width + gap)
-            rect = pygame.Rect(x, y_pos, btn_width, btn_height)
-            game.ui_state.unit_selection_buttons.append((rect, u_type))
-
-        game.ui_state.selected_unit_type = "standard"
-
-        # Building type selection buttons (above tower button)
-        building_types = ["standard", "wood_tower", "gold_mine"]
-        bldg_btn_width = 90
-        bldg_btn_height = 35
-        bldg_gap = 5
-
-        # Position building buttons above the tower button
-        bldg_y_start = (
-            tower_button_y
-            - bldg_btn_height * len(building_types)
-            - bldg_gap * (len(building_types) - 1)
-            - 10
-        )
-
-        game.ui_state.building_selection_buttons = []
-        for i, b_type in enumerate(building_types):
-            bldg_x = tower_button_x + (tower_button_w - bldg_btn_width) // 2
-            bldg_y = bldg_y_start + i * (bldg_btn_height + bldg_gap)
-            rect = pygame.Rect(bldg_x, bldg_y, bldg_btn_width, bldg_btn_height)
-            game.ui_state.building_selection_buttons.append((rect, b_type))
-
-        game.ui_state.selected_building_type = "standard"

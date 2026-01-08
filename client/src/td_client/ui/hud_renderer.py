@@ -153,36 +153,7 @@ class HUDRenderer:
         # Draw reserved/queued unit previews at route starts
         self._render_route_unit_previews(surface, game)
 
-        # 4. Tower build button with hover feedback
-        tower_hover = getattr(game.ui_state, "tower_button_hovered", False)
-        tower_active = game.ui_state.tower_build_mode
-        base_color = (80, 120, 80)
-        hover_color = (110, 170, 110)
-        active_color = (140, 210, 140)
-        tower_btn_color = (
-            active_color
-            if tower_active
-            else (hover_color if tower_hover else base_color)
-        )
-
-        pygame.draw.rect(
-            surface, tower_btn_color, game.ui_state.tower_button, border_radius=10
-        )
-        if tower_hover:
-            pygame.draw.rect(
-                surface,
-                (200, 255, 200),
-                game.ui_state.tower_button,
-                width=2,
-                border_radius=10,
-            )
-        tower_label = font.render("Build", True, (255, 255, 255))
-        tower_label_rect = tower_label.get_rect(
-            center=game.ui_state.tower_button.center
-        )
-        surface.blit(tower_label, tower_label_rect)
-
-        # 4b. Building selection buttons (above tower button)
+        # 4. Building selection buttons (above tower button)
         self._render_building_selection_buttons(surface, game, font, mx, my)
 
         # 5. Timers

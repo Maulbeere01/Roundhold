@@ -114,15 +114,9 @@ class BuildController:
         """Handle mouse click - publishes appropriate events."""
         mx, my = event.pos
 
-        # Priority 1: Tower button (toggle build mode)
-        if game.ui_state.tower_button.collidepoint(mx, my):
-            self._toggle_build_mode(game)
-            return
-
-        # Priority 2: Send units buttons
+        # Priority 1: Send units buttons (unverändert)
         for idx, rect in enumerate(game.ui_state.barracks_buttons, start=1):
             if rect.collidepoint(mx, my):
-                # Set click feedback
                 import time
 
                 game.ui_state.last_clicked_route = idx
@@ -130,21 +124,22 @@ class BuildController:
                 self._request_send_units(game, idx)
                 return
 
-        # Priority 3: Unit Selection Buttons (Bottom)
+        # Priority 2: Unit Selection Buttons (unverändert)
         for rect, u_type in game.ui_state.unit_selection_buttons:
             if rect.collidepoint(mx, my):
                 game.ui_state.selected_unit_type = u_type
-                logger.info(f"Selected unit type: {u_type}")
                 return
 
-        # Priority 4: Building Selection Buttons
+        # Priority 3: Building Selection Buttons
+        # NEU: Aktiviert jetzt sofort den Baumodus
         for rect, b_type in game.ui_state.building_selection_buttons:
             if rect.collidepoint(mx, my):
                 game.ui_state.selected_building_type = b_type
-                logger.info(f"Selected building type: {b_type}")
+                game.ui_state.tower_build_mode = True  # Sofort aktivieren
+                logger.info(f"Building selected: {b_type}, Build Mode ON")
                 return
 
-        # Priority 5: Tower placement (if in build mode)
+        # Priority 4: Tower placement (Wenn Modus an ist)
         if game.ui_state.tower_build_mode:
             self._request_build_tower(game, mx, my)
 
