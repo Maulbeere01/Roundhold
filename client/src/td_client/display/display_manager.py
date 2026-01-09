@@ -41,27 +41,31 @@ class DisplayManager:
 
     def toggle_fullscreen(self) -> None:
         """Toggle between fullscreen and windowed mode.
-        
+
         Preserves the current render surface and switches display mode.
         """
         self.is_fullscreen = not self.is_fullscreen
-        
+
         if self.is_fullscreen:
             # Switch to fullscreen
             self.screen = pygame.display.set_mode(
                 (self.native_width, self.native_height), pygame.FULLSCREEN
             )
-            logger.info(f"Switched to fullscreen: {self.native_width}x{self.native_height}")
+            logger.info(
+                f"Switched to fullscreen: {self.native_width}x{self.native_height}"
+            )
         else:
             # Switch to windowed mode (resizable)
             self.screen = pygame.display.set_mode(
                 (self.screen_width, self.screen_height), pygame.RESIZABLE
             )
-            logger.info(f"Switched to windowed mode: {self.screen_width}x{self.screen_height}")
+            logger.info(
+                f"Switched to windowed mode: {self.screen_width}x{self.screen_height}"
+            )
 
     def handle_resize(self, width: int, height: int) -> None:
         """Handle window resize event.
-        
+
         Updates screen dimensions and recreates render surface.
         Only applies in windowed mode.
         """

@@ -25,15 +25,12 @@ class InputController:
 
             # Unit selection keys
             elif event.key == pygame.K_1:
-                game.audio.play_ui_sound("testsound1")
                 game.ui_state.selected_unit_type = "standard"
                 logger.info("Selected unit: Warrior (Key 1)")
             elif event.key == pygame.K_2:
-                game.audio.play_ui_sound("testsound1")
                 game.ui_state.selected_unit_type = "pawn"
                 logger.info("Selected unit: Pawn (Key 2)")
             elif event.key == pygame.K_3:
-                game.audio.play_ui_sound("testsound1")
                 game.ui_state.selected_unit_type = "archer"
                 logger.info("Selected unit: Archer (Key 3)")
 

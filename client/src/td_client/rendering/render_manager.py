@@ -40,6 +40,7 @@ class RenderManager:
         screen_width: int,
         screen_height: int,
         player_id: PlayerID,
+        audio,
     ):
         """Initialize render manager with target surface and common dependencies
 
@@ -51,6 +52,7 @@ class RenderManager:
             screen_width: Screen width in pixels
             screen_height: Screen height in pixels
             player_id: The ID of the local player ("A" or "B")
+            audio: AudioService instance
         """
         self.render_surface = render_surface
         self.template_manager = template_manager
@@ -59,6 +61,7 @@ class RenderManager:
         self.screen_width = screen_width
         self.screen_height = screen_height
         self._player_id = player_id
+        self.audio = audio
 
         # Sprite groups for Y-sorted rendering
         self.buildings = pygame.sprite.Group()
@@ -290,6 +293,9 @@ class RenderManager:
             # Since units spawn in order, we remove the first preview for this route/player
             if entity_id not in self._spawned_unit_ids:
                 self._spawned_unit_ids.add(entity_id)
+
+                # Play deploy sound when unit spawns
+                self.audio.play_unit_sound("troop", "deploy")
 
                 if ui_state is not None and hasattr(ui_state, "route_preview_sprites"):
                     # Find the first preview sprite matching this unit's route and player

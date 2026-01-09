@@ -133,6 +133,7 @@ class GameFactory:
             game.display_manager.screen_width,
             game.display_manager.screen_height,
             game.player_id,
+            game.audio,
         )
         game.sim_state.render_manager.initialize(game)
 
