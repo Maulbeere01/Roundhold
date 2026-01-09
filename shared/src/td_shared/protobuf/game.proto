@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+package td_shared;
+
+// Service defining server-authoritative RPCs used during the preparation phase.
+service YourGameService {
+  rpc BuildTower(BuildTowerRequest) returns (BuildTowerResponse);
+  rpc SendUnits(SendUnitsRequest) returns (SendUnitsResponse);
+  // Client queues for a match; server streams queue updates and match start
+  rpc QueueForMatch(QueueRequest) returns (stream MatchEvent);
+  // Client signals that it finished rendering the current round
+  rpc RoundAck(RoundAckRequest) returns (RoundAckResponse);
+}
+
+// Tower placement
+message BuildTowerRequest {
+  string player_id = 1;   // "A" or "B"
+  string tower_type = 2;  // e.g., "standard"
+  int32 tile_row = 3;     // tile coordinates (row)
+  int32 tile_col = 4;     // tile coordinates (col)
+  int32 level = 5;        // default 1
+}
+
+message BuildTowerResponse {
+  bool success = 1;
+}
+
+// Units for the next wave
+message SimUnitData {
+  string player_id = 1; // owner: "A" or "B"
+  string unit_type = 2; // e.g., "standard"
+  int32 route = 3;      // 1..5
+  int32 spawn_tick = 4; // tick when unit spawns
+}
+
+message SendUnitsRequest {
+  string player_id = 1;
+  repeated SimUnitData units = 2;
+}
+
+message SendUnitsResponse {
+  bool success = 1;
+  int32 total_gold = 2; // Player's current gold after processing (authoritative)
+}
+
+// Simulation data used for RoundStart push
+message SimTowerData {
+  string player_id = 1;  // "A" or "B"
+  string tower_type = 2;
+  float position_x = 3;
+  float position_y = 4;
+  int32 level = 5;
+}
+
+message SimulationData {
+  repeated SimTowerData towers = 1;
+  repeated SimUnitData units = 2;
+  int32 tick_rate = 3;
+}
+
+message RoundStartData {
+  SimulationData simulation_data = 1;
+}
+
+message RoundResultData {
+  int32 lives_lost_player_A = 1;      // Lives lost this round
+  int32 gold_earned_player_A = 2;     // Gold earned this round
+  int32 lives_lost_player_B = 3;      // Lives lost this round
+  int32 gold_earned_player_B = 4;     // Gold earned this round
+  int32 total_lives_player_A = 5;     // Total remaining lives (authoritative)
+  int32 total_gold_player_A = 6;      // Total accumulated gold (authoritative)
+  int32 total_lives_player_B = 7;     // Total remaining lives (authoritative)
+  int32 total_gold_player_B = 8;      // Total accumulated gold (authoritative)
+}
+
+message TowerPlaced {
+  string player_id = 1;   // "A" or "B"
+  string tower_type = 2;  // e.g., "standard"
+  int32 tile_row = 3;     // tile coordinates (row)
+  int32 tile_col = 4;     // tile coordinates (col)
+  int32 level = 5;        // default 1
+}
+
+// Lobby / queueing
+message QueueRequest {
+  string player_name = 1;
+}
+
+message QueueUpdate {
+  string message = 1;  // e.g., "Waiting for another player..."
+}
+
+message MatchFound {
+  string player_id = 1;  // "A" or "B"
+  string opponent_name = 2;
+  RoundStartData initial_round_start = 3;
+}
+
+message MatchEvent {
+  oneof event_type {
+    MatchFound match_found = 1;
+    QueueUpdate queue_update = 2;
+    RoundStartData round_start = 3;
+    RoundResultData round_result = 4;
+    TowerPlaced tower_placed = 5;
+    OpponentDisconnected opponent_disconnected = 6;
+  }
+}
+
+message RoundAckRequest {
+  string player_id = 1;  // "A" or "B"
+  int32 round_number = 2; // Which round the client finished
+}
+
+message RoundAckResponse {
+  bool success = 1;
+}
+
+
+message OpponentDisconnected {
+
+}

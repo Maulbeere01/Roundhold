@@ -1,20 +1,27 @@
+exclude: |
+  ^.*\.md$
+
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
-    -   id: check-yaml
-    -   id: end-of-file-fixer
-    -   id: trailing-whitespace
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
 
--   repo: https://github.com/astral-sh/ruff-pre-commit
+  - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.5.0
     hooks:
-    -   id: ruff
+      - id: ruff
         args: ["--fix"]
-    -   id: ruff-format
+        # Exclude map data and generated protobuf files
+        exclude: '^shared/src/td_shared/map/static_map\.py$|^client/src/td_client/map/map_data\.py$|.*_pb2\.py$'
+      - id: ruff-format
+        exclude: '^shared/src/td_shared/map/static_map\.py$|^client/src/td_client/map/map_data\.py$|.*_pb2\.py$'
 
--   repo: https://github.com/pre-commit/mirrors-mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.10.1
     hooks:
-    -   id: mypy
+      - id: mypy
         args: [--ignore-missing-imports]
+        exclude: '^shared/src/td_shared/map/static_map\.py$|^client/src/td_client/map/map_data\.py$|.*_pb2\.py$'
