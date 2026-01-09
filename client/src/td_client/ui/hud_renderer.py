@@ -397,7 +397,9 @@ class HUDRenderer:
         }
 
         for rect, b_type in building_selection_buttons:
-            is_selected = b_type == game.ui_state.selected_building_type
+            # Only show as selected when in build mode AND this is the selected type
+            is_selected = (b_type == game.ui_state.selected_building_type 
+                          and game.ui_state.tower_build_mode)
             is_hovered = rect.collidepoint(mx, my)
 
             # Colors based on building type - darker colors with good contrast

@@ -75,6 +75,12 @@ class GameApp:
                         event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE
                     ):
                         running = False
+                    elif event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
+                        # Toggle fullscreen with F11
+                        self.display_manager.toggle_fullscreen()
+                    elif event.type == pygame.VIDEORESIZE:
+                        # Handle window resize
+                        self.display_manager.handle_resize(event.w, event.h)
                     else:
                         self.current_screen.handle_event(event)
 

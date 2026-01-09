@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import pygame
 from td_shared.game import TILE_SIZE_PX, TOWER_STATS, UNIT_STATS
 
 from td_client.events import (
@@ -337,12 +338,17 @@ class BuildController:
         else:
             logger.error("No event bus available - cannot send build tower request")
 
-        # Exit build mode
-        game.ui_state.tower_build_mode = False
-        game.ui_state.hover_tile = None
+        # Check if shift is held - if so, stay in build mode
+        mods = pygame.key.get_mods()
+        shift_held = bool(mods & pygame.KMOD_SHIFT)
+        
+        if not shift_held:
+            # Exit build mode only if shift is not held
+            game.ui_state.tower_build_mode = False
+            game.ui_state.hover_tile = None
 
-        if self.event_bus:
-            self.event_bus.publish(ToggleBuildModeEvent(enabled=False))
+            if self.event_bus:
+                self.event_bus.publish(ToggleBuildModeEvent(enabled=False))
 
     def _on_build_tower_response(self, event: BuildTowerResponseEvent) -> None:
         """Handle build tower response - rollback if failed."""
