@@ -37,25 +37,35 @@ class HUDRenderer:
 
         # 2. Basic HUD (Gold and Lives)
         font = pygame.font.Font(None, 28)
-        
+
         # Animate gold display scale (pulse effect)
         target_scale = 1.0
         if game.ui_state.gold_display_scale > 1.0:
-            game.ui_state.gold_display_scale = max(1.0, game.ui_state.gold_display_scale - 3.0 * (1/60))  # Decay over time
-        game.ui_state.gold_display_scale += (target_scale - game.ui_state.gold_display_scale) * 0.15
-        
+            game.ui_state.gold_display_scale = max(
+                1.0, game.ui_state.gold_display_scale - 3.0 * (1 / 60)
+            )  # Decay over time
+        game.ui_state.gold_display_scale += (
+            target_scale - game.ui_state.gold_display_scale
+        ) * 0.15
+
         # Decay gold flash timer
         if game.ui_state.gold_flash_timer > 0:
-            game.ui_state.gold_flash_timer = max(0, game.ui_state.gold_flash_timer - (1/60))
-        
+            game.ui_state.gold_flash_timer = max(
+                0, game.ui_state.gold_flash_timer - (1 / 60)
+            )
+
         # Calculate gold text color based on flash timer (supports gain or loss)
-        flash_progress = game.ui_state.gold_flash_timer / 0.5 if game.ui_state.gold_flash_timer > 0 else 0
+        flash_progress = (
+            game.ui_state.gold_flash_timer / 0.5
+            if game.ui_state.gold_flash_timer > 0
+            else 0
+        )
         base_color = game.ui_state.gold_flash_color or (255, 255, 255)
         gold_color = tuple(
             int(base_color[i] * flash_progress + 255 * (1 - flash_progress))
             for i in range(3)
         )
-        
+
         # Render gold text with scale effect
         gold_font_size = int(28 * game.ui_state.gold_display_scale)
         gold_font = pygame.font.Font(None, gold_font_size)
@@ -76,13 +86,13 @@ class HUDRenderer:
             surface.blit(my_hud, (20, 20))
             right_x = game.display_manager.screen_width - 20 - opp_hud.get_width()
             surface.blit(opp_hud, (right_x, 20))
-        
+
         # Render floating gold change texts
         self._render_floating_gold_texts(surface, game)
-        
+
         # Render floating damage texts
         self._render_floating_damage_texts(surface, game)
-        
+
         # Render arrow projectiles
         self._render_arrow_projectiles(surface, game)
 
@@ -123,7 +133,9 @@ class HUDRenderer:
                     surface, (170, 190, 255), draw_rect, width=2, border_radius=6
                 )
             label = font.render(f"Route {i}", True, (255, 255, 255))
-            label_rect = label.get_rect(center=(draw_rect.centerx, draw_rect.centery - 6))
+            label_rect = label.get_rect(
+                center=(draw_rect.centerx, draw_rect.centery - 6)
+            )
             surface.blit(label, label_rect)
 
             # Preview the currently selected unit type & cost on hover
@@ -133,7 +145,9 @@ class HUDRenderer:
                     True,
                     (255, 230, 180),
                 )
-                prev_rect = preview.get_rect(center=(draw_rect.centerx, draw_rect.centery + 10))
+                prev_rect = preview.get_rect(
+                    center=(draw_rect.centerx, draw_rect.centery + 10)
+                )
                 surface.blit(preview, prev_rect)
 
         # Draw reserved/queued unit previews at route starts
@@ -145,21 +159,29 @@ class HUDRenderer:
         base_color = (80, 120, 80)
         hover_color = (110, 170, 110)
         active_color = (140, 210, 140)
-        tower_btn_color = active_color if tower_active else (hover_color if tower_hover else base_color)
+        tower_btn_color = (
+            active_color
+            if tower_active
+            else (hover_color if tower_hover else base_color)
+        )
 
         pygame.draw.rect(
             surface, tower_btn_color, game.ui_state.tower_button, border_radius=10
         )
         if tower_hover:
             pygame.draw.rect(
-                surface, (200, 255, 200), game.ui_state.tower_button, width=2, border_radius=10
+                surface,
+                (200, 255, 200),
+                game.ui_state.tower_button,
+                width=2,
+                border_radius=10,
             )
         tower_label = font.render("Build", True, (255, 255, 255))
         tower_label_rect = tower_label.get_rect(
             center=game.ui_state.tower_button.center
         )
         surface.blit(tower_label, tower_label_rect)
-        
+
         # 4b. Building selection buttons (above tower button)
         self._render_building_selection_buttons(surface, game, font, mx, my)
 
@@ -278,46 +300,61 @@ class HUDRenderer:
         # During combat, previews are managed by render_manager (removed as units spawn)
         if not game.phase_state.in_preparation:
             return
-            
+
         player_id = game.player_id
         my_map = game.map_state.terrain_map
         if not my_map:
             return
 
         previews = getattr(game.ui_state, "route_unit_previews", {}) or {}
-        
+
         # Track what we need vs what we have
-        if not hasattr(game.ui_state, '_last_preview_state'):
+        if not hasattr(game.ui_state, "_last_preview_state"):
             game.ui_state._last_preview_state = {}
-        
+
         # Check if previews changed since last frame
         if game.ui_state._last_preview_state == previews:
             return  # No changes, don't recreate sprites
-        
+
         # Instead of clearing ALL sprites, only remove/add what changed
         old_state = game.ui_state._last_preview_state
-        
+
         # Find routes/units that were removed or changed count
-        for route in list(old_state.keys()):
-            if route not in previews or len(previews.get(route, [])) < len(old_state[route]):
-                # Remove preview sprites for this route
-                for sprite in list(game.ui_state.route_preview_sprites):
-                    if hasattr(sprite, '_preview_route') and sprite._preview_route == route:
-                        sprite.kill()
-                        game.sim_state.render_manager.animation_manager.unregister(sprite)
-                        # Also remove from units group
-                        if sprite in game.sim_state.render_manager.units:
-                            game.sim_state.render_manager.units.remove(sprite)
-                        game.ui_state.route_preview_sprites.remove(sprite)
-        
+        routes_to_remove = list(
+            filter(
+                lambda route: route not in previews
+                or len(previews.get(route, [])) < len(old_state[route]),
+                old_state.keys(),
+            )
+        )
+
+        # Remove preview sprites for routes that need cleanup using filter()
+        sprites_to_remove = list(
+            filter(
+                lambda sprite: (
+                    hasattr(sprite, "_preview_route")
+                    and sprite._preview_route in routes_to_remove
+                ),
+                game.ui_state.route_preview_sprites,
+            )
+        )
+
+        for sprite in sprites_to_remove:
+            sprite.kill()
+            game.sim_state.render_manager.animation_manager.unregister(sprite)
+            # Also remove from units group
+            if sprite in game.sim_state.render_manager.units:
+                game.sim_state.render_manager.units.remove(sprite)
+            game.ui_state.route_preview_sprites.remove(sprite)
+
         # Store current state for next frame comparison
         game.ui_state._last_preview_state = {k: list(v) for k, v in previews.items()}
-        
+
         if not previews:
             return
 
         template_manager = game.sim_state.render_manager.template_manager
-        
+
         for route, units in previews.items():
             if player_id not in GAME_PATHS or route not in GAME_PATHS[player_id]:
                 continue
@@ -329,13 +366,16 @@ class HUDRenderer:
             base_y = my_map.rect.y + tile_row * TILE_SIZE_PX + TILE_SIZE_PX / 2
 
             # Count how many preview sprites already exist for this route
-            existing_count = sum(1 for s in game.ui_state.route_preview_sprites 
-                               if hasattr(s, '_preview_route') and s._preview_route == route)
-            
+            existing_count = sum(
+                1
+                for s in game.ui_state.route_preview_sprites
+                if hasattr(s, "_preview_route") and s._preview_route == route
+            )
+
             # Only create sprites for NEW units (beyond existing_count)
             for idx in range(existing_count, len(units)):
                 u_type = units[idx]
-                
+
                 # Create offset position - spread units in a grid pattern
                 col_idx = idx % 3
                 row_idx = idx // 3
@@ -346,8 +386,9 @@ class HUDRenderer:
 
                 # Create actual unit sprite for preview
                 from ..sprites.units import UnitSprite
+
                 anim_dict = template_manager.get_unit_template(u_type, player_id)
-                
+
                 preview_sprite = UnitSprite(
                     x=px,
                     y=py,
@@ -359,7 +400,7 @@ class HUDRenderer:
                 preview_sprite._preview_player = player_id
                 preview_sprite.state = "idle"
                 preview_sprite.frames = anim_dict["idle"]
-                
+
                 # Add to appropriate sprite group
                 game.sim_state.render_manager.units.add(preview_sprite)
                 game.sim_state.render_manager.animation_manager.register(preview_sprite)
@@ -370,27 +411,33 @@ class HUDRenderer:
     ) -> None:
         """Render building selection buttons above the build button."""
         from td_shared.game import TOWER_STATS
-        
-        building_selection_buttons = getattr(game.ui_state, "building_selection_buttons", [])
+
+        building_selection_buttons = getattr(
+            game.ui_state, "building_selection_buttons", []
+        )
         if not building_selection_buttons:
             return
-        
+
         # Building display names
         building_names = {
             "standard": "Tower",
             "wood_tower": "Wood",
             "gold_mine": "Mine",
         }
-        
+
         for rect, b_type in building_selection_buttons:
             is_selected = b_type == game.ui_state.selected_building_type
             is_hovered = rect.collidepoint(mx, my)
-            
+
             # Colors based on building type - darker colors with good contrast
             if b_type == "gold_mine":
                 base_color = (120, 100, 30)
                 hover_color = (160, 130, 50)
-                selected_color = (100, 80, 20)  # Darker for selected, text will be bright
+                selected_color = (
+                    100,
+                    80,
+                    20,
+                )  # Darker for selected, text will be bright
                 text_color = (255, 255, 200)  # Bright text for gold mine
             elif b_type == "wood_tower":
                 base_color = (100, 65, 30)
@@ -402,7 +449,7 @@ class HUDRenderer:
                 hover_color = (100, 100, 180)
                 selected_color = (40, 120, 40)
                 text_color = (255, 255, 255)
-            
+
             if is_selected:
                 color = selected_color
                 border_color = (255, 255, 255)
@@ -412,16 +459,16 @@ class HUDRenderer:
             else:
                 color = base_color
                 border_color = (100, 100, 100)
-            
+
             pygame.draw.rect(surface, color, rect, border_radius=4)
             pygame.draw.rect(surface, border_color, rect, width=2, border_radius=4)
-            
+
             # Building name - use specific text color for readability
             name_text = building_names.get(b_type, b_type.capitalize())
             name_surf = font.render(name_text, True, text_color)
             name_rect = name_surf.get_rect(center=(rect.centerx, rect.centery - 6))
             surface.blit(name_surf, name_rect)
-            
+
             # Cost - always bright gold/white for visibility
             cost = TOWER_STATS.get(b_type, {}).get("cost", "?")
             cost_surf = font.render(f"${cost}", True, (255, 255, 100))
@@ -489,7 +536,6 @@ class HUDRenderer:
             box_y = my + 20
 
         # Draw background box
-        rect = pygame.Rect(box_x, box_y, box_width, box_height)
         box_surf = pygame.Surface((box_width, box_height), pygame.SRCALPHA)
         pygame.draw.rect(box_surf, bg_color, box_surf.get_rect(), border_radius=5)
         pygame.draw.rect(
@@ -508,34 +554,39 @@ class HUDRenderer:
         # Clear any legacy HUD floating gold texts that shouldn't exist
         if game.ui_state.floating_gold_texts:
             game.ui_state.floating_gold_texts.clear()
-        
+
         # Render only mine gold texts (white->gold->green transition)
         self._render_floating_mine_gold_texts(surface, game)
 
     def _render_floating_mine_gold_texts(self, surface: pygame.Surface, game) -> None:
         """Render floating gold indicators at mine positions with white-to-green transition."""
         import time
+
         current_time = time.time()
-        
-        for text_data in list(game.ui_state.floating_mine_gold_texts):
-            elapsed = current_time - text_data['start_time']
-            duration = 1.5  # 1.5 second lifetime for better visibility
-            
-            if elapsed > duration:
-                game.ui_state.floating_mine_gold_texts.remove(text_data)
-                continue
-            
+        duration = 1.5
+
+        # Filter out expired text entries
+        game.ui_state.floating_mine_gold_texts = list(
+            filter(
+                lambda text_data: (current_time - text_data["start_time"]) < duration,
+                game.ui_state.floating_mine_gold_texts,
+            )
+        )
+
+        for text_data in game.ui_state.floating_mine_gold_texts:
+            elapsed = current_time - text_data["start_time"]
+
             # Calculate animation properties
             progress = elapsed / duration
             alpha = int(255 * (1 - progress * 0.7))  # Slower fade out
             y_offset = -(progress * 50)  # Float upward
-            
+
             # Scale effect - quick pop at start, then settle
             if progress < 0.15:
                 scale = 1.0 + (0.5 * (1 - progress / 0.15))
             else:
                 scale = 1.0
-            
+
             # Color transition from bright gold to green
             # Start gold (255, 215, 0), end green (50, 255, 50)
             ease_progress = min(1.0, progress * 1.5)
@@ -543,21 +594,21 @@ class HUDRenderer:
             g = int(215 + (255 - 215) * ease_progress)
             b = int(0 * (1 - ease_progress) + 50 * ease_progress)
             color = (max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
-            
+
             # Render gold amount with larger, bolder font
             font_size = int(24 * scale)  # Bigger font for readability
             font = pygame.font.Font(None, font_size)
             text_surf = font.render(f"+{text_data['amount']}g", True, color)
             text_surf.set_alpha(alpha)
-            
+
             # Add outline/shadow for better visibility
             shadow_surf = font.render(f"+{text_data['amount']}g", True, (0, 0, 0))
             shadow_surf.set_alpha(alpha // 2)
-            
+
             # Position at mine location
-            x = text_data['x'] - text_surf.get_width() // 2
-            y = text_data['y'] + y_offset
-            
+            x = text_data["x"] - text_surf.get_width() // 2
+            y = text_data["y"] + y_offset
+
             # Draw shadow first, then text
             surface.blit(shadow_surf, (x + 1, y + 1))
             surface.blit(text_surf, (x, y))
@@ -565,64 +616,70 @@ class HUDRenderer:
     def _render_floating_damage_texts(self, surface: pygame.Surface, game) -> None:
         """Render damage indicators from unit damage with proper validation."""
         import time
-        
+
         current_time = time.time()
         duration = 1.5
-        
-        # Filter out expired text entries
-        alive_texts = []
-        for text_data in game.ui_state.floating_damage_texts:
-            elapsed = current_time - text_data.get('start_time', current_time)
-            if elapsed < duration:
-                alive_texts.append(text_data)
-            
+
+        alive_texts = list(
+            filter(
+                lambda text_data: (
+                    current_time - text_data.get("start_time", current_time)
+                )
+                < duration,
+                game.ui_state.floating_damage_texts,
+            )
+        )
+
         game.ui_state.floating_damage_texts = alive_texts
-        
+
         # Render damage texts with color transition and fade out
         for text_data in game.ui_state.floating_damage_texts:
             try:
-                elapsed = current_time - text_data.get('start_time', current_time)
+                elapsed = current_time - text_data.get("start_time", current_time)
                 progress = min(1.0, elapsed / duration)
-                
+
                 # Color transition: white -> red, clamped to valid range
                 r = 255
                 g = max(0, min(255, int(255 * (1 - progress))))
                 b = max(0, min(255, int(255 * (1 - progress))))
                 color = (r, g, b)
-                
+
                 # Float upward
                 offset_y = int(progress * 30)
-                
+
                 # Fade out in last 0.5s
                 alpha = 255
                 if elapsed > 1.0:
                     fade_progress = min(1.0, (elapsed - 1.0) / 0.5)
                     alpha = max(0, int(255 * (1 - fade_progress)))
-                
+
                 # Position validation - reject invalid/off-screen positions
-                x = int(text_data.get('x', -1))
-                y = int(text_data.get('y', -1))
-                
+                x = int(text_data.get("x", -1))
+                y = int(text_data.get("y", -1))
+
                 if x < 0 or y < 0:
                     continue
-                
+
                 y = y - offset_y
-                
+
                 # Only render if within valid screen bounds
-                if not (50 <= x <= surface.get_width() - 50 and 50 <= y <= surface.get_height() - 50):
+                if not (
+                    50 <= x <= surface.get_width() - 50
+                    and 50 <= y <= surface.get_height() - 50
+                ):
                     continue
-                
-                amount = int(text_data.get('amount', 0))
+
+                amount = int(text_data.get("amount", 0))
                 if amount <= 0:
                     continue
-                
+
                 font_size = max(12, int(22 * (1 - progress * 0.3)))
                 font = pygame.font.Font(None, font_size)
                 damage_text = font.render(f"-{amount}", True, color)
-                
+
                 if alpha < 255:
                     damage_text.set_alpha(alpha)
-                
+
                 text_rect = damage_text.get_rect(center=(x, y))
                 surface.blit(damage_text, text_rect)
             except Exception:
@@ -631,70 +688,93 @@ class HUDRenderer:
 
     def _render_arrow_projectiles(self, surface: pygame.Surface, game) -> None:
         """Render and update arrow projectiles flying from towers to targets."""
-        import time
         import math
+        import time
+
         current_time = time.time()
-        
-        for arrow in list(game.ui_state.arrow_projectiles):
-            elapsed = current_time - arrow['start_time']
-            progress = elapsed / arrow['duration']
-            
-            if progress >= 1.0:
-                game.ui_state.arrow_projectiles.remove(arrow)
-                continue
-            
+
+        # Filter out completed projectiles
+        game.ui_state.arrow_projectiles = list(
+            filter(
+                lambda arrow: (current_time - arrow["start_time"]) / arrow["duration"]
+                < 1.0,
+                game.ui_state.arrow_projectiles,
+            )
+        )
+
+        for arrow in game.ui_state.arrow_projectiles:
+            elapsed = current_time - arrow["start_time"]
+            progress = elapsed / arrow["duration"]
+
             # Interpolate position
-            x = arrow['start_x'] + (arrow['end_x'] - arrow['start_x']) * progress
-            y = arrow['start_y'] + (arrow['end_y'] - arrow['start_y']) * progress
-            
+            x = arrow["start_x"] + (arrow["end_x"] - arrow["start_x"]) * progress
+            y = arrow["start_y"] + (arrow["end_y"] - arrow["start_y"]) * progress
+
             # Add slight arc (parabola) for visual appeal
             arc_height = 20
-            arc_offset = -arc_height * 4 * progress * (1 - progress)  # Parabola peaks at 0.5
+            arc_offset = (
+                -arc_height * 4 * progress * (1 - progress)
+            )  # Parabola peaks at 0.5
             y += arc_offset
-            
+
             # Calculate angle from start to end
-            dx = arrow['end_x'] - arrow['start_x']
-            dy = arrow['end_y'] - arrow['start_y']
+            dx = arrow["end_x"] - arrow["start_x"]
+            dy = arrow["end_y"] - arrow["start_y"]
             angle = math.atan2(dy, dx)
-            
+
             # Draw arrow as a line with an arrowhead
             arrow_length = 12
             arrow_width = 3
-            
+
             # Arrow body (line)
             end_x = x
             end_y = y
             start_x = x - math.cos(angle) * arrow_length
             start_y = y - math.sin(angle) * arrow_length
-            
+
             # Arrow color - brownish wood color
             arrow_color = (139, 90, 43)
             tip_color = (180, 180, 180)  # Silver tip
-            
+
             # Draw arrow shaft
-            pygame.draw.line(surface, arrow_color, (start_x, start_y), (end_x, end_y), arrow_width)
-            
+            pygame.draw.line(
+                surface, arrow_color, (start_x, start_y), (end_x, end_y), arrow_width
+            )
+
             # Draw arrowhead (triangle)
             head_length = 6
-            head_width = 4
-            
+
             # Arrowhead points
             tip = (end_x + math.cos(angle) * 2, end_y + math.sin(angle) * 2)
-            left = (end_x - math.cos(angle + 0.5) * head_length, 
-                    end_y - math.sin(angle + 0.5) * head_length)
-            right = (end_x - math.cos(angle - 0.5) * head_length,
-                     end_y - math.sin(angle - 0.5) * head_length)
-            
+            left = (
+                end_x - math.cos(angle + 0.5) * head_length,
+                end_y - math.sin(angle + 0.5) * head_length,
+            )
+            right = (
+                end_x - math.cos(angle - 0.5) * head_length,
+                end_y - math.sin(angle - 0.5) * head_length,
+            )
+
             pygame.draw.polygon(surface, tip_color, [tip, left, right])
-            
+
             # Draw fletching (feathers) at the back
             fletch_x = start_x - math.cos(angle) * 2
             fletch_y = start_y - math.sin(angle) * 2
             fletch_color = (200, 50, 50)  # Red feathers
-            
+
             # Two small lines for fletching
             perp_angle = angle + math.pi / 2
             f_len = 4
-            pygame.draw.line(surface, fletch_color, 
-                           (fletch_x + math.cos(perp_angle) * f_len, fletch_y + math.sin(perp_angle) * f_len),
-                           (fletch_x - math.cos(perp_angle) * f_len, fletch_y - math.sin(perp_angle) * f_len), 2)
+            pygame.draw.line(
+                surface,
+                fletch_color,
+                (
+                    fletch_x + math.cos(perp_angle) * f_len,
+                    fletch_y + math.sin(perp_angle) * f_len,
+                ),
+                (
+                    fletch_x - math.cos(perp_angle) * f_len,
+                    fletch_y - math.sin(perp_angle) * f_len,
+                ),
+                2,
+            )

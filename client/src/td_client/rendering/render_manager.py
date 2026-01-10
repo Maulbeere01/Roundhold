@@ -8,8 +8,7 @@ from td_shared.game import MAP_WIDTH_TILES, TILE_SIZE_PX, PlayerID
 from td_shared.simulation import GameState, SimEntity
 
 from ..sprites.animation import AnimationManager
-from ..sprites.buildings import BuildingSprite
-from ..sprites.buildings import MannedTowerSprite
+from ..sprites.buildings import BuildingSprite, MannedTowerSprite
 from ..sprites.units import UnitSprite
 from .foam_renderer import FoamRenderer
 from .map_layer_renderer import MapLayerRenderer
@@ -272,9 +271,9 @@ class RenderManager:
         """
 
         # Track which units we've seen spawn to remove their preview sprites
-        if not hasattr(self, '_spawned_unit_ids'):
+        if not hasattr(self, "_spawned_unit_ids"):
             self._spawned_unit_ids = set()
-        
+
         # Sync units
         for unit in game_state.units:
             entity_id = unit.entity_id
@@ -286,26 +285,30 @@ class RenderManager:
                     self.sprite_factory.remove_unit_sprite(entity_id)
                     logger.debug(f"Removed inactive unit sprite {entity_id}")
                 continue
-            
+
             # When a unit first spawns (becomes active), remove its corresponding preview sprite
             # Since units spawn in order, we remove the first preview for this route/player
             if entity_id not in self._spawned_unit_ids:
                 self._spawned_unit_ids.add(entity_id)
-                
-                if ui_state is not None and hasattr(ui_state, 'route_preview_sprites'):
+
+                if ui_state is not None and hasattr(ui_state, "route_preview_sprites"):
                     # Find the first preview sprite matching this unit's route and player
                     for sprite in list(ui_state.route_preview_sprites):
-                        if (hasattr(sprite, '_preview_route') and 
-                            hasattr(sprite, '_preview_player') and
-                            sprite._preview_route == unit.route and
-                            sprite._preview_player == unit.player_id):
+                        if (
+                            hasattr(sprite, "_preview_route")
+                            and hasattr(sprite, "_preview_player")
+                            and sprite._preview_route == unit.route
+                            and sprite._preview_player == unit.player_id
+                        ):
                             sprite.kill()
                             self.animation_manager.unregister(sprite)
                             # Also remove from units group
                             if sprite in self.units:
                                 self.units.remove(sprite)
                             ui_state.route_preview_sprites.remove(sprite)
-                            logger.debug(f"Removed preview sprite for spawning unit {entity_id} (route {unit.route})")
+                            logger.debug(
+                                f"Removed preview sprite for spawning unit {entity_id} (route {unit.route})"
+                            )
                             break
 
             # Translate local simulation coordinates to global screen coordinates
@@ -321,7 +324,7 @@ class RenderManager:
                 )
                 if hasattr(sprite, "update_health"):
                     sprite.update_health(unit.health, unit.max_health, ui_state)
-                    
+
                 logger.debug(
                     f"Created unit sprite {entity_id} (player={unit.player_id}) at ({render_pos.x}, {render_pos.y})"
                 )
@@ -337,20 +340,29 @@ class RenderManager:
             # --- HANDLE BASE DEFENSE TOWERS ---
             if tower.tower_type == "castle_archer":
                 # Don't create a sprite, find the existing castle
-                target_sprite = self.castle_A_sprite if tower.player_id == "A" else self.castle_B_sprite
-                
+                target_sprite = (
+                    self.castle_A_sprite
+                    if tower.player_id == "A"
+                    else self.castle_B_sprite
+                )
+
                 # Update aiming based on ACTUAL simulation target
                 if hasattr(target_sprite, "update_facing"):
                     if tower.last_shot_target:
-                        class Dummy: pass
+
+                        class Dummy:
+                            pass
+
                         d = Dummy()
                         d.x, d.y = tower.last_shot_target
                         target_screen_pos = self._sim_to_screen_pos(d)
-                        target_sprite.update_facing(target_screen_pos.x, target_screen_pos.y)
+                        target_sprite.update_facing(
+                            target_screen_pos.x, target_screen_pos.y
+                        )
                     else:
                         target_sprite.reset_to_idle()
                 continue
-            
+
             entity_id = tower.entity_id
 
             # Check if tower is active
@@ -376,19 +388,23 @@ class RenderManager:
                 )
             else:
                 sprite = self.tower_sprites[entity_id]
-            if isinstance(sprite, MannedTowerSprite) or hasattr(sprite, 'update_facing'):
+            if isinstance(sprite, MannedTowerSprite) or hasattr(
+                sprite, "update_facing"
+            ):
                 # Check if the sim tower has a target
                 if tower.last_shot_target:
                     # Convert sim target pos to screen pos
                     # We create a dummy object to use _sim_to_screen_pos
-                    class Dummy: pass
+                    class Dummy:
+                        pass
+
                     d = Dummy()
                     d.x, d.y = tower.last_shot_target
-                    
+
                     target_screen_pos = self._sim_to_screen_pos(d)
                     sprite.update_facing(target_screen_pos.x, target_screen_pos.y)
                 else:
-                    if hasattr(sprite, 'reset_to_idle'):
+                    if hasattr(sprite, "reset_to_idle"):
                         sprite.reset_to_idle()
 
         self._update_castle_aiming(game_state)
@@ -409,7 +425,9 @@ class RenderManager:
             tower = get_castle_tower(player_id)
             if tower and tower.last_shot_target and tower.shoot_anim_timer > 0:
                 # Use the authoritative target from the sim to avoid jitter when units are far
-                class Dummy: pass
+                class Dummy:
+                    pass
+
                 d = Dummy()
                 d.x, d.y = tower.last_shot_target
                 target_screen_pos = self._sim_to_screen_pos(d)
@@ -417,38 +435,43 @@ class RenderManager:
             else:
                 castle_sprite.reset_to_idle()
 
-        if hasattr(self, 'castle_A_sprite'):
+        if hasattr(self, "castle_A_sprite"):
             update_single_castle(self.castle_A_sprite, "A")
-        if hasattr(self, 'castle_B_sprite'):
+        if hasattr(self, "castle_B_sprite"):
             update_single_castle(self.castle_B_sprite, "B")
 
     def spawn_projectiles_from_state(self, game_state: GameState, ui_state) -> None:
         """Spawn arrow projectiles for any shots fired this tick."""
-        if not hasattr(game_state, 'pending_projectiles'):
+        if not hasattr(game_state, "pending_projectiles"):
             return
-        
+
         import time
+
         for proj in game_state.pending_projectiles:
             # Convert sim coords to screen coords
-            class Dummy: pass
+            class Dummy:
+                pass
+
             from_d = Dummy()
-            from_d.x, from_d.y = proj['from_x'], proj['from_y']
+            from_d.x, from_d.y = proj["from_x"], proj["from_y"]
             to_d = Dummy()
-            to_d.x, to_d.y = proj['to_x'], proj['to_y']
-            
+            to_d.x, to_d.y = proj["to_x"], proj["to_y"]
+
             from_screen = self._sim_to_screen_pos(from_d)
             to_screen = self._sim_to_screen_pos(to_d)
-            
-            ui_state.arrow_projectiles.append({
-                'start_x': from_screen.x,
-                'start_y': from_screen.y - 50,  # Archer position on tower
-                'end_x': to_screen.x,
-                'end_y': to_screen.y - 15,  # Target center mass
-                'start_time': time.time(),
-                'duration': 0.18,  # Fast arrow travel time
-                'damage': proj['damage'],
-            })
-        
+
+            ui_state.arrow_projectiles.append(
+                {
+                    "start_x": from_screen.x,
+                    "start_y": from_screen.y - 50,  # Archer position on tower
+                    "end_x": to_screen.x,
+                    "end_y": to_screen.y - 15,  # Target center mass
+                    "start_time": time.time(),
+                    "duration": 0.18,  # Fast arrow travel time
+                    "damage": proj["damage"],
+                }
+            )
+
         # Clear pending projectiles
         game_state.pending_projectiles.clear()
 
@@ -475,9 +498,9 @@ class RenderManager:
             image=castle_blue_image,
             archer_anims=archer_anims_A,
             player_id="A",
-            archer_offset_y=-50 # Higher offset for castle (adjust if needed)
+            archer_offset_y=-50,  # Higher offset for castle (adjust if needed)
         )
-        
+
         # Player B castle (Red/Right)
         self.castle_B_sprite = MannedTowerSprite(
             x=center_x + map_width // 2 - 100,
@@ -485,13 +508,13 @@ class RenderManager:
             image=castle_red_image,
             archer_anims=archer_anims_B,
             player_id="B",
-            archer_offset_y=-50
+            archer_offset_y=-50,
         )
 
         # Add to groups
         self.buildings.add(self.castle_A_sprite)
         self.buildings.add(self.castle_B_sprite)
-        
+
         # Register animations so they idle/breathe
         self.animation_manager.register(self.castle_A_sprite)
         self.animation_manager.register(self.castle_B_sprite)
@@ -509,16 +532,18 @@ class RenderManager:
                 archer_pos = target_sprite.kill_archer()
                 if archer_pos:
                     # Spawn dust/explosion at archer position
-                    self.sprite_factory.create_effect(archer_pos[0], archer_pos[1], "spawn_dust")
-            
+                    self.sprite_factory.create_effect(
+                        archer_pos[0], archer_pos[1], "spawn_dust"
+                    )
+
             # Swap Image
             old_midbottom = target_sprite.rect.midbottom
             target_sprite.image = self.castle_destroyed_image
             target_sprite.rect = target_sprite.image.get_rect(midbottom=old_midbottom)
-            
+
             # Stop animating this castle
             self.animation_manager.unregister(target_sprite)
-            
+
             logger.info(f"Visuals: Castle {player_id} destroyed.")
         """Swaps the castle sprite to the destroyed version."""
         target_sprite = (
@@ -568,7 +593,11 @@ class RenderManager:
                 self.render_surface.blit(surface, rect)
 
     def _draw_sorted_sprites(self) -> None:
-        all_sprites = list(self.buildings) + list(self.units) + list(self.decor) + list(self.effects)
+        # Combine sprite groups
+        from itertools import chain
+
+        sprite_groups = [self.buildings, self.units, self.decor, self.effects]
+        all_sprites = list(chain(*map(list, sprite_groups)))
         sorted_sprites = sorted(all_sprites, key=lambda s: s.get_sort_key())
         for sprite in sorted_sprites:
             if hasattr(sprite, "draw_on"):
@@ -612,12 +641,12 @@ class RenderManager:
 
         # Update sprite-specific logic (e.g., movement for units)
         self.units.update(dt)
-        
+
         # Update buildings (for hit flash effects)
         self.buildings.update(dt)
-        
+
         # Also update castle sprites directly if they exist
-        if hasattr(self, 'castle_A_sprite') and self.castle_A_sprite:
+        if hasattr(self, "castle_A_sprite") and self.castle_A_sprite:
             self.castle_A_sprite.update(dt)
-        if hasattr(self, 'castle_B_sprite') and self.castle_B_sprite:
+        if hasattr(self, "castle_B_sprite") and self.castle_B_sprite:
             self.castle_B_sprite.update(dt)

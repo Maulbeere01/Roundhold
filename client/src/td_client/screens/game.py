@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from functools import reduce
 from typing import TYPE_CHECKING
 
 import pygame
@@ -141,10 +142,18 @@ class GameScreen(Screen):
             self.game.player_state.opponent_lives = event.total_lives_player_A
 
         # Trigger gold flash when gold is received from round result
-        gold_earned = event.gold_earned_player_A if self.player_id == "A" else event.gold_earned_player_B
+        gold_earned = (
+            event.gold_earned_player_A
+            if self.player_id == "A"
+            else event.gold_earned_player_B
+        )
         if gold_earned > 0:
             self.game.ui_state.gold_flash_timer = 0.5
-            self.game.ui_state.gold_flash_color = (100, 255, 100)  # Green flash for gain
+            self.game.ui_state.gold_flash_color = (
+                100,
+                255,
+                100,
+            )  # Green flash for gain
             self.game.ui_state.gold_display_scale = 1.2
 
         # 2. CHECK FOR GAME OVER
@@ -165,77 +174,95 @@ class GameScreen(Screen):
             self.game.phase_state.prep_seconds_remaining = (
                 self.game.phase_state.prep_seconds_total
             )
-            
+
             # Clear preview sprites when returning to preparation phase
             for sprite in list(self.game.ui_state.route_preview_sprites):
                 sprite.kill()
                 if self.game.sim_state.render_manager:
-                    self.game.sim_state.render_manager.animation_manager.unregister(sprite)
+                    self.game.sim_state.render_manager.animation_manager.unregister(
+                        sprite
+                    )
                     # Also remove from units group if present
                     if sprite in self.game.sim_state.render_manager.units:
                         self.game.sim_state.render_manager.units.remove(sprite)
             self.game.ui_state.route_preview_sprites.clear()
             self.game.ui_state.route_unit_previews.clear()  # Clear the queue data too
-            if hasattr(self.game.ui_state, '_last_preview_state'):
+            if hasattr(self.game.ui_state, "_last_preview_state"):
                 self.game.ui_state._last_preview_state = {}
             # Reset spawned unit tracking for next round
-            if hasattr(self.game.sim_state.render_manager, '_spawned_unit_ids'):
+            if hasattr(self.game.sim_state.render_manager, "_spawned_unit_ids"):
                 self.game.sim_state.render_manager._spawned_unit_ids.clear()
-            
+
             # Generate gold from gold mines and play effects
             self._generate_gold_from_mines()
-            
+
             # Update gold mine states to active
             self._update_gold_mine_states(active=True)
 
     def _generate_gold_from_mines(self) -> None:
         """Play visual effects for gold mines at the start of preparation phase.
-        
+
         Note: Gold is actually generated server-side. This only plays the visual effect.
         """
         import random
         import time
-        
+
         if not self.game:
             return
-        
+
         gold_mines = self.game.ui_state.local_gold_mines
-        
-        for key, sprite in gold_mines.items():
+
+        for sprite in gold_mines.values():
             # Play gold spawn effect at the mine's position
-            if hasattr(self.game.sim_state, 'render_manager') and self.game.sim_state.render_manager:
+            if (
+                hasattr(self.game.sim_state, "render_manager")
+                and self.game.sim_state.render_manager
+            ):
                 self.game.sim_state.render_manager.sprite_factory.create_effect(
-                    sprite.rect.centerx, 
-                    sprite.rect.centery, 
-                    "gold_spawn"
+                    sprite.rect.centerx, sprite.rect.centery, "gold_spawn"
                 )
-            
+
             # Show floating gold amount per mine
             gold_amount = random.randint(5, 15)
-            self.game.ui_state.floating_mine_gold_texts.append({
-                'amount': gold_amount,
-                'x': sprite.rect.centerx,
-                'y': sprite.rect.top - 10,
-                'start_time': time.time()
-            })
-        
+            self.game.ui_state.floating_mine_gold_texts.append(
+                {
+                    "amount": gold_amount,
+                    "x": sprite.rect.centerx,
+                    "y": sprite.rect.top - 10,
+                    "start_time": time.time(),
+                }
+            )
+
         if gold_mines:
-            logger.info(f"Played gold spawn effects for {len(gold_mines)} gold mines")
-    
+            # Calculate total gold from all mine text
+            total_gold_from_mines = reduce(
+                lambda acc, text_data: acc + text_data.get("amount", 0),
+                self.game.ui_state.floating_mine_gold_texts,
+                0,
+            )
+            logger.info(
+                f"Played gold spawn effects for {len(gold_mines)} gold mines (total: {total_gold_from_mines}g)"
+            )
+
     def _update_gold_mine_states(self, active: bool) -> None:
         """Update all gold mines to active or inactive state."""
         if not self.game:
             return
-        
+
         # Update locally placed gold mines
         for sprite in self.game.ui_state.local_gold_mines.values():
-            if hasattr(sprite, 'set_active'):
+            if hasattr(sprite, "set_active"):
                 sprite.set_active(active)
-        
+
         # Also update simulation-side gold mines (opponent's mines)
-        if hasattr(self.game.sim_state, 'render_manager') and self.game.sim_state.render_manager:
-            for sprite in self.game.sim_state.render_manager.sprite_factory.tower_sprites.values():
-                if hasattr(sprite, 'set_active'):
+        if (
+            hasattr(self.game.sim_state, "render_manager")
+            and self.game.sim_state.render_manager
+        ):
+            for sprite in (
+                self.game.sim_state.render_manager.sprite_factory.tower_sprites.values()
+            ):
+                if hasattr(sprite, "set_active"):
                     sprite.set_active(active)
 
     def _on_tower_placed(self, event: TowerPlacedEvent) -> None:
