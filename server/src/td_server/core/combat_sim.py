@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from td_shared.game import GOLD_PER_KILL, RoundResultData, SimulationData
+from td_shared.game import RoundResultData, SimulationData
 from td_shared.simulation import GameState
 
 
@@ -14,8 +14,9 @@ def run_combat_simulation(simulation_data: SimulationData) -> RoundResultData:
     lives_lost_player_A = game_state.lives_lost_player_A
     lives_lost_player_B = game_state.lives_lost_player_B
 
-    gold_A = game_state.get_kills_by_player("A") * GOLD_PER_KILL
-    gold_B = game_state.get_kills_by_player("B") * GOLD_PER_KILL
+    # Get gold earned from kills (already calculated per unit type)
+    gold_A = game_state.get_gold_earned_by_player("A")
+    gold_B = game_state.get_gold_earned_by_player("B")
 
     result: RoundResultData = {
         "lives_lost_player_A": lives_lost_player_A,

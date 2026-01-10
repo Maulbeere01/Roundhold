@@ -387,3 +387,28 @@ class GameStateManager:
             ), "All gold earned values must be non-negative"
 
             return gold_earned
+
+    def add_gold_to_players(self, amount: int) -> None:
+        """Add gold to both players (e.g., passive income per round).
+
+        Args:
+            amount: Gold amount to add to each player.
+        """
+        # Preconditions
+        assert amount >= 0, f"amount must be >= 0, not {amount}"
+
+        with self._lock:
+            old_gold_A = self.economy.get_gold("A")
+            old_gold_B = self.economy.get_gold("B")
+
+            # Add gold to both players
+            self.economy.add_gold("A", amount)
+            self.economy.add_gold("B", amount)
+
+            # Postconditions
+            assert (
+                self.economy.get_gold("A") == old_gold_A + amount
+            ), f"Player A gold not correctly updated: expected {old_gold_A + amount}, got {self.economy.get_gold('A')}"
+            assert (
+                self.economy.get_gold("B") == old_gold_B + amount
+            ), f"Player B gold not correctly updated: expected {old_gold_B + amount}, got {self.economy.get_gold('B')}"

@@ -5,6 +5,7 @@ import threading
 import time
 
 from td_shared.game import (
+    GOLD_PER_ROUND,
     PREP_SECONDS,
     ROUND_ACK_TIMEOUT,
     PlayerID,
@@ -223,7 +224,7 @@ class RoundManager:
 
         self.game_manager.apply_round_result(result)
         self.game_manager.clear_wave_data()
-        
+
         # Generate gold from gold mines for next round
         mine_gold = self.game_manager.generate_gold_from_mines()
         self._log.info(
@@ -231,7 +232,15 @@ class RoundManager:
             mine_gold.get("A", 0),
             mine_gold.get("B", 0),
         )
-        
+
+        # Give passive gold income per round to both players
+        self.game_manager.add_gold_to_players(GOLD_PER_ROUND)
+        self._log.info(
+            "Passive round income: A +%d, B +%d",
+            GOLD_PER_ROUND,
+            GOLD_PER_ROUND,
+        )
+
         # Defer RoundResult push until after ACKs
         self._pending_round_result = result
 

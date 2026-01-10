@@ -146,6 +146,12 @@ class GameFactory:
 
     @staticmethod
     def _initialize_ui(game: GameSimulation) -> None:
+        # Preconditions
+        assert START_GOLD >= 0, f"START_GOLD must be >= 0, not {START_GOLD}"
+        assert PLAYER_LIVES >= 0, f"PLAYER_LIVES must be >= 0, not {PLAYER_LIVES}"
+        assert PREP_SECONDS > 0, f"PREP_SECONDS must be > 0, not {PREP_SECONDS}"
+        assert COMBAT_SECONDS > 0, f"COMBAT_SECONDS must be > 0, not {COMBAT_SECONDS}"
+
         # Player state
         game.player_state.my_gold = START_GOLD
         game.player_state.my_lives = PLAYER_LIVES
@@ -163,6 +169,31 @@ class GameFactory:
         game.phase_state.combat_seconds_total = COMBAT_SECONDS
         game.phase_state.prep_seconds_remaining = 0.0
         game.phase_state.combat_seconds_remaining = 0.0
+
+        # Postconditions
+        assert (
+            game.player_state.my_gold == START_GOLD
+        ), "my_gold not initialized correctly"
+        assert (
+            game.player_state.my_lives == PLAYER_LIVES
+        ), "my_lives not initialized correctly"
+        assert (
+            game.player_state.opponent_lives == PLAYER_LIVES
+        ), "opponent_lives not initialized correctly"
+        assert (
+            game.player_state.current_round == 0
+        ), "current_round not initialized to 0"
+        assert game.player_state.my_gold >= 0, "my_gold must be >= 0"
+        assert game.player_state.my_lives >= 0, "my_lives must be >= 0"
+        assert game.player_state.opponent_lives >= 0, "opponent_lives must be >= 0"
+        assert (
+            not game.phase_state.in_preparation
+        ), "Should not be in preparation initially"
+        assert not game.phase_state.in_combat, "Should not be in combat initially"
+        assert game.phase_state.prep_seconds_total > 0, "prep_seconds_total must be > 0"
+        assert (
+            game.phase_state.combat_seconds_total > 0
+        ), "combat_seconds_total must be > 0"
 
         # UI elements
         game.sim_state.hud_renderer = HUDRenderer()
@@ -217,21 +248,26 @@ class GameFactory:
             game.ui_state.unit_selection_buttons.append((rect, u_type))
 
         game.ui_state.selected_unit_type = "standard"
-        
+
         # Building type selection buttons (above tower button)
         building_types = ["standard", "wood_tower", "gold_mine"]
         bldg_btn_width = 90
         bldg_btn_height = 35
         bldg_gap = 5
-        
+
         # Position building buttons above the tower button
-        bldg_y_start = tower_button_y - bldg_btn_height * len(building_types) - bldg_gap * (len(building_types) - 1) - 10
-        
+        bldg_y_start = (
+            tower_button_y
+            - bldg_btn_height * len(building_types)
+            - bldg_gap * (len(building_types) - 1)
+            - 10
+        )
+
         game.ui_state.building_selection_buttons = []
         for i, b_type in enumerate(building_types):
             bldg_x = tower_button_x + (tower_button_w - bldg_btn_width) // 2
             bldg_y = bldg_y_start + i * (bldg_btn_height + bldg_gap)
             rect = pygame.Rect(bldg_x, bldg_y, bldg_btn_width, bldg_btn_height)
             game.ui_state.building_selection_buttons.append((rect, b_type))
-        
+
         game.ui_state.selected_building_type = "standard"

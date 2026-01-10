@@ -64,6 +64,19 @@ class NetworkHandler:
 
     def _on_request_build_tower(self, event: RequestBuildTowerEvent) -> None:
         """Handle build tower request by calling NetworkClient."""
+        # Preconditions
+        assert event is not None, "event must not be None"
+        assert event.player_id in (
+            "A",
+            "B",
+        ), f"player_id must be 'A' or 'B', not '{event.player_id}'"
+        assert event.tile_row >= 0, f"tile_row must be >= 0, not {event.tile_row}"
+        assert event.tile_col >= 0, f"tile_col must be >= 0, not {event.tile_col}"
+        assert (
+            isinstance(event.tower_type, str) and event.tower_type
+        ), "tower_type must be a non-empty string"
+        assert event.level >= 1, f"level must be >= 1, not {event.level}"
+
         logger.debug(
             "NetworkHandler: BuildTower request for player=%s at (%d,%d)",
             event.player_id,
@@ -97,6 +110,20 @@ class NetworkHandler:
         sprite_existed: bool,
     ) -> None:
         """Publish build tower response event."""
+        # Preconditions
+        assert isinstance(success, bool), f"success must be a bool, not {type(success)}"
+        assert row >= 0, f"row must be >= 0, not {row}"
+        assert col >= 0, f"col must be >= 0, not {col}"
+        assert (
+            isinstance(tower_type, str) and tower_type
+        ), "tower_type must be a non-empty string"
+        assert isinstance(
+            was_empty, bool
+        ), f"was_empty must be a bool, not {type(was_empty)}"
+        assert isinstance(
+            sprite_existed, bool
+        ), f"sprite_existed must be a bool, not {type(sprite_existed)}"
+
         self.event_bus.publish(
             BuildTowerResponseEvent(
                 success=success,
@@ -110,6 +137,18 @@ class NetworkHandler:
 
     def _on_request_send_units(self, event: RequestSendUnitsEvent) -> None:
         """Handle send units request by calling NetworkClient."""
+        # Preconditions
+        assert event is not None, "event must not be None"
+        assert event.player_id in (
+            "A",
+            "B",
+        ), f"player_id must be 'A' or 'B', not '{event.player_id}'"
+        assert (
+            isinstance(event.unit_type, str) and event.unit_type
+        ), "unit_type must be a non-empty string"
+        assert event.route >= 1, f"route must be >= 1, not {event.route}"
+        assert event.spawn_tick >= 0, f"spawn_tick must be >= 0, not {event.spawn_tick}"
+
         logger.debug(
             "NetworkHandler: SendUnits request for player=%s, route=%d",
             event.player_id,

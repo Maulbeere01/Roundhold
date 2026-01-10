@@ -13,8 +13,9 @@ ROUND_ACK_TIMEOUT: float = 120.0
 
 # Player economy
 PLAYER_LIVES: int = 20
-START_GOLD: int = 500
+START_GOLD: int = 150
 GOLD_PER_KILL: int = 1
+GOLD_PER_ROUND: int = 25
 
 
 class UnitStats(TypedDict):
@@ -37,7 +38,7 @@ UNIT_STATS: dict[str, UnitStats] = {
         "cost": 15,
         "health": 120,
         "speed": 90.0,
-        "base_damage": 10,
+        "base_damage": 5,
     },
     "archer": {
         "cost": 10,

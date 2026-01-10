@@ -28,9 +28,9 @@ class GameState:
         self.sim_dt = calculate_sim_dt(self.tick_rate)
         self.current_tick = 0
 
-        # Kill counters for reward distribution
-        self.kills_by_player_A = 0
-        self.kills_by_player_B = 0
+        # Gold earned from kills
+        self.gold_earned_by_player_A = 0
+        self.gold_earned_by_player_B = 0
 
         # Lives lost tracking (units reaching enemy base)
         self.lives_lost_player_A = 0
@@ -140,11 +140,11 @@ class GameState:
         ), f"sim_dt must be > 0 after initialization: {self.sim_dt}"
         assert self.current_tick == 0, "current_tick must be 0 after initialization"
         assert (
-            self.kills_by_player_A == 0
-        ), "kills_by_player_A must be 0 after initialization"
+            self.gold_earned_by_player_A == 0
+        ), "gold_earned_by_player_A must be 0 after initialization"
         assert (
-            self.kills_by_player_B == 0
-        ), "kills_by_player_B must be 0 after initialization"
+            self.gold_earned_by_player_B == 0
+        ), "gold_earned_by_player_B must be 0 after initialization"
         assert (
             self.lives_lost_player_A == 0
         ), "lives_lost_player_A must be 0 after initialization"
@@ -177,11 +177,11 @@ class GameState:
             self.lives_lost_player_B >= 0
         ), f"lives_lost_player_B must be >= 0, not {self.lives_lost_player_B}"
         assert (
-            self.kills_by_player_A >= 0
-        ), f"kills_by_player_A must be >= 0, not {self.kills_by_player_A}"
+            self.gold_earned_by_player_A >= 0
+        ), f"gold_earned_by_player_A must be >= 0, not {self.gold_earned_by_player_A}"
         assert (
-            self.kills_by_player_B >= 0
-        ), f"kills_by_player_B must be >= 0, not {self.kills_by_player_B}"
+            self.gold_earned_by_player_B >= 0
+        ), f"gold_earned_by_player_B must be >= 0, not {self.gold_earned_by_player_B}"
 
         old_tick = self.current_tick
 
@@ -269,11 +269,11 @@ class GameState:
             self.lives_lost_player_B >= 0
         ), f"lives_lost_player_B must be >= 0 after update: {self.lives_lost_player_B}"
         assert (
-            self.kills_by_player_A >= 0
-        ), f"kills_by_player_A must be >= 0 after update: {self.kills_by_player_A}"
+            self.gold_earned_by_player_A >= 0
+        ), f"gold_earned_by_player_A must be >= 0 after update: {self.gold_earned_by_player_A}"
         assert (
-            self.kills_by_player_B >= 0
-        ), f"kills_by_player_B must be >= 0 after update: {self.kills_by_player_B}"
+            self.gold_earned_by_player_B >= 0
+        ), f"gold_earned_by_player_B must be >= 0 after update: {self.gold_earned_by_player_B}"
         assert all(
             u.is_active for u in self.active_units
         ), "All active_units must be active"
@@ -295,7 +295,8 @@ class GameState:
             return bool(min_duration_passed and delay_passed)
         return False
 
-    def get_kills_by_player(self, player_id: PlayerID) -> int:
+    def get_gold_earned_by_player(self, player_id: PlayerID) -> int:
+        """Get total gold earned from kills by a player."""
         # Preconditions
         assert player_id in (
             "A",
@@ -303,10 +304,10 @@ class GameState:
         ), f"player_id must be 'A' or 'B', not '{player_id}'"
 
         if player_id == "A":
-            result = self.kills_by_player_A
+            result = self.gold_earned_by_player_A
         else:
-            result = self.kills_by_player_B
+            result = self.gold_earned_by_player_B
 
         # Postcondition
-        assert result >= 0, f"Kills must be >= 0, not {result}"
+        assert result >= 0, f"Gold earned must be >= 0, not {result}"
         return result

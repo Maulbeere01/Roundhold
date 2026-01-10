@@ -49,6 +49,17 @@ class GameSimulation:
         network_client: NetworkClient,
         event_bus: EventBus | None = None,
     ):
+        # Preconditions
+        assert display_manager is not None, "display_manager must not be None"
+        assert asset_loader is not None, "asset_loader must not be None"
+        assert asset_paths is not None, "asset_paths must not be None"
+        assert settings is not None, "settings must not be None"
+        assert player_id in (
+            "A",
+            "B",
+        ), f"player_id must be 'A' or 'B', not '{player_id}'"
+        assert network_client is not None, "network_client must not be None"
+
         # Store dependencies only, no heavy initialization
         # GameFactory.create_game() will handle full initialization
         self.settings = settings
@@ -65,6 +76,14 @@ class GameSimulation:
         self.phase_state = PhaseState()
         self.ui_state = UIState()
         self.sim_state = SimulationState()
+
+        # Postconditions
+        assert self.player_id == player_id, "player_id not set correctly"
+        assert self.map_state is not None, "map_state not initialized"
+        assert self.player_state is not None, "player_state not initialized"
+        assert self.phase_state is not None, "phase_state not initialized"
+        assert self.ui_state is not None, "ui_state not initialized"
+        assert self.sim_state is not None, "sim_state not initialized"
 
     # =========================================================================
     # Convenience properties for backwards compatibility
@@ -144,23 +163,36 @@ class GameSimulation:
         return grid
 
     def load_round_start(self, round_start: RoundStartData) -> None:
+        # Preconditions
+        assert round_start is not None, "round_start must not be None"
+        assert "simulation_data" in round_start, "round_start must have simulation_data"
+        assert (
+            self.phase_state.in_preparation or self.player_state.current_round == 0
+        ), "Should transition from preparation phase or be initial round"
+
+        old_round = self.player_state.current_round
         self.player_state.current_round += 1
         logger.info("Loading RoundStart for round %d", self.player_state.current_round)
-        
+
+        # Postcondition: Round should increment
+        assert (
+            self.player_state.current_round == old_round + 1
+        ), f"Round should increment by 1: expected {old_round + 1}, got {self.player_state.current_round}"
+
         # DON'T clear preview sprites yet - they'll fade out as units spawn
         # Just clear the queue data, not the actual sprites
         self.ui_state.route_unit_previews.clear()
         # DON'T reset _last_preview_state - this would trigger HUD to clear sprites
-        
+
         # Reset the tracking for spawned units so previews can be cleared properly
-        if hasattr(self.sim_state.render_manager, '_spawned_unit_ids'):
+        if hasattr(self.sim_state.render_manager, "_spawned_unit_ids"):
             self.sim_state.render_manager._spawned_unit_ids.clear()
-        
+
         self._clear_local_towers()
-        
+
         # Set gold mines to inactive during combat phase
         self._update_gold_mine_states(active=False)
-        
+
         self.player_state.round_result_received = False
         self.player_state.round_ack_sent = False
         self.player_state.round_base_my_lives = self.player_state.my_lives
@@ -170,6 +202,22 @@ class GameSimulation:
         self.phase_state.combat_seconds_remaining = (
             self.phase_state.combat_seconds_total
         )
+
+        # Postconditions: Phase transition should be valid
+        assert (
+            not self.phase_state.in_preparation
+        ), "Should not be in preparation after round start"
+        assert self.phase_state.in_combat, "Should be in combat after round start"
+        assert (
+            self.phase_state.combat_seconds_remaining > 0
+        ), f"combat_seconds_remaining must be > 0, not {self.phase_state.combat_seconds_remaining}"
+        assert (
+            self.player_state.my_lives >= 0
+        ), f"my_lives must be >= 0, not {self.player_state.my_lives}"
+        assert (
+            self.player_state.opponent_lives >= 0
+        ), f"opponent_lives must be >= 0, not {self.player_state.opponent_lives}"
+
         self.sim_state.wave_simulator.load_wave(round_start["simulation_data"])
 
     def load_initial_round_preview(self, round_start: RoundStartData) -> None:
@@ -187,9 +235,11 @@ class GameSimulation:
         state = self.sim_state.wave_simulator.game_state
         if state:
             self.sim_state.render_manager.sync_sprites_to_state(state, self.ui_state)
-            
+
             # Spawn arrow projectiles from simulation shots
-            self.sim_state.render_manager.spawn_projectiles_from_state(state, self.ui_state)
+            self.sim_state.render_manager.spawn_projectiles_from_state(
+                state, self.ui_state
+            )
 
             if not self.player_state.round_result_received:
                 if self.player_id == "A":
@@ -206,54 +256,103 @@ class GameSimulation:
                     opp_vis = self.player_state.round_base_opponent_lives - int(
                         getattr(state, "lives_lost_player_A", 0)
                     )
-                
+
                 # Detect damage and trigger castle hit effects (only if castle still alive)
                 if my_vis < self.player_state.my_lives and my_vis > 0:
                     # My castle was hit but still alive
-                    castle = self.sim_state.render_manager.castle_A_sprite if self.player_id == "A" else self.sim_state.render_manager.castle_B_sprite
-                    if castle and hasattr(castle, 'trigger_hit_effect'):
+                    castle = (
+                        self.sim_state.render_manager.castle_A_sprite
+                        if self.player_id == "A"
+                        else self.sim_state.render_manager.castle_B_sprite
+                    )
+                    if castle and hasattr(castle, "trigger_hit_effect"):
                         castle.trigger_hit_effect()
                         # Spawn damage text at castle (only if castle is at valid position)
                         damage = self.player_state.my_lives - my_vis
                         if castle and castle.rect.centery > 50:
                             import time
-                            self.ui_state.floating_damage_texts.append({
-                                'amount': damage,
-                                'x': castle.rect.centerx,
-                                'y': castle.rect.top - 20,
-                                'start_time': time.time()
-                            })
-                
+
+                            self.ui_state.floating_damage_texts.append(
+                                {
+                                    "amount": damage,
+                                    "x": castle.rect.centerx,
+                                    "y": castle.rect.top - 20,
+                                    "start_time": time.time(),
+                                }
+                            )
+
                 if opp_vis < self.player_state.opponent_lives and opp_vis > 0:
                     # Opponent castle was hit but still alive
-                    castle = self.sim_state.render_manager.castle_B_sprite if self.player_id == "A" else self.sim_state.render_manager.castle_A_sprite
-                    if castle and hasattr(castle, 'trigger_hit_effect'):
+                    castle = (
+                        self.sim_state.render_manager.castle_B_sprite
+                        if self.player_id == "A"
+                        else self.sim_state.render_manager.castle_A_sprite
+                    )
+                    if castle and hasattr(castle, "trigger_hit_effect"):
                         castle.trigger_hit_effect()
                         # Spawn damage text at castle (only if castle is at valid position)
                         damage = self.player_state.opponent_lives - opp_vis
                         if castle and castle.rect.centery > 50:
                             import time
-                            self.ui_state.floating_damage_texts.append({
-                                'amount': damage,
-                                'x': castle.rect.centerx,
-                                'y': castle.rect.top - 20,
-                                'start_time': time.time()
-                            })
-                
+
+                            self.ui_state.floating_damage_texts.append(
+                                {
+                                    "amount": damage,
+                                    "x": castle.rect.centerx,
+                                    "y": castle.rect.top - 20,
+                                    "start_time": time.time(),
+                                }
+                            )
+
                 self.player_state.my_lives = max(0, my_vis)
                 self.player_state.opponent_lives = max(0, opp_vis)
 
+                # Postconditions: Lives should be non-negative
+                assert (
+                    self.player_state.my_lives >= 0
+                ), f"my_lives must be >= 0, not {self.player_state.my_lives}"
+                assert (
+                    self.player_state.opponent_lives >= 0
+                ), f"opponent_lives must be >= 0, not {self.player_state.opponent_lives}"
+
+        # Preconditions
+        assert dt >= 0, f"dt must be >= 0, not {dt}"
+        assert not (
+            self.phase_state.in_preparation and self.phase_state.in_combat
+        ), "Cannot be in both preparation and combat phase"
+
         if self.phase_state.in_preparation:
+            old_prep_remaining = self.phase_state.prep_seconds_remaining
             self.phase_state.prep_seconds_remaining = max(
                 0.0, self.phase_state.prep_seconds_remaining - dt
             )
+            # Postcondition: Time should only decrease
+            assert (
+                self.phase_state.prep_seconds_remaining <= old_prep_remaining
+            ), "prep_seconds_remaining should not increase"
+            assert (
+                self.phase_state.prep_seconds_remaining >= 0
+            ), f"prep_seconds_remaining must be >= 0, not {self.phase_state.prep_seconds_remaining}"
+
             if self.phase_state.prep_seconds_remaining <= 0.0:
                 self.phase_state.in_preparation = False
+                # Postcondition: Should transition out of preparation
+                assert (
+                    not self.phase_state.in_preparation
+                ), "Should not be in preparation after timer expires"
 
         if self.phase_state.in_combat:
+            old_combat_remaining = self.phase_state.combat_seconds_remaining
             self.phase_state.combat_seconds_remaining = max(
                 0.0, self.phase_state.combat_seconds_remaining - dt
             )
+            # Postcondition: Time should only decrease
+            assert (
+                self.phase_state.combat_seconds_remaining <= old_combat_remaining
+            ), "combat_seconds_remaining should not increase"
+            assert (
+                self.phase_state.combat_seconds_remaining >= 0
+            ), f"combat_seconds_remaining must be >= 0, not {self.phase_state.combat_seconds_remaining}"
             state = self.sim_state.wave_simulator.game_state
 
             if self.player_state.my_lives <= 0:
@@ -299,21 +398,23 @@ class GameSimulation:
         """Remove all locally-spawned tower sprites."""
         list(map(lambda s: s.kill(), self.ui_state.local_towers.values()))
         self.ui_state.local_towers.clear()
-    
+
     def _clear_gold_mines(self) -> None:
         """Remove all locally-spawned gold mine sprites."""
         list(map(lambda s: s.kill(), self.ui_state.local_gold_mines.values()))
         self.ui_state.local_gold_mines.clear()
-    
+
     def _update_gold_mine_states(self, active: bool) -> None:
         """Update all gold mines to active or inactive state."""
         # Update locally placed gold mines
         for sprite in self.ui_state.local_gold_mines.values():
-            if hasattr(sprite, 'set_active'):
+            if hasattr(sprite, "set_active"):
                 sprite.set_active(active)
-        
+
         # Also update simulation-side gold mines (opponent's mines)
-        if hasattr(self.sim_state, 'render_manager') and self.sim_state.render_manager:
-            for sprite in self.sim_state.render_manager.sprite_factory.tower_sprites.values():
-                if hasattr(sprite, 'set_active'):
+        if hasattr(self.sim_state, "render_manager") and self.sim_state.render_manager:
+            for (
+                sprite
+            ) in self.sim_state.render_manager.sprite_factory.tower_sprites.values():
+                if hasattr(sprite, "set_active"):
                     sprite.set_active(active)

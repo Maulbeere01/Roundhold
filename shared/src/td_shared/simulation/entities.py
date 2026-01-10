@@ -105,19 +105,27 @@ class SimUnit(SimEntity):
 
         old_health = self.health
         was_alive = self.health > 0
-        old_kills_A = game_state.kills_by_player_A
-        old_kills_B = game_state.kills_by_player_B
+        old_gold_A = game_state.gold_earned_by_player_A
+        old_gold_B = game_state.gold_earned_by_player_B
 
         self.health -= damage
 
         if self.health <= 0:
             self.health = 0
             self.is_active = False
-            # count kills for gold distribution
+            # Calculate gold reward based on unit type
+            gold_reward_map = {
+                "standard": 2,
+                "pawn": 6,
+                "archer": 4,
+            }
+            gold_reward = gold_reward_map.get(self.unit_type, 2)
+
+            # Add gold reward for kill
             if attacker_player_id == "A":
-                game_state.kills_by_player_A += 1
+                game_state.gold_earned_by_player_A += gold_reward
             else:
-                game_state.kills_by_player_B += 1
+                game_state.gold_earned_by_player_B += gold_reward
 
         # Postconditions
         assert self.health == max(
@@ -125,14 +133,20 @@ class SimUnit(SimEntity):
         ), "health not correctly reduced"
         if was_alive and self.health <= 0:
             assert not self.is_active, "Unit must be inactive when health <= 0"
+            gold_reward_map = {
+                "standard": 2,
+                "pawn": 6,
+                "archer": 4,
+            }
+            expected_gold = gold_reward_map.get(self.unit_type, 2)
             if attacker_player_id == "A":
                 assert (
-                    game_state.kills_by_player_A == old_kills_A + 1
-                ), "Kills not correctly incremented for player A"
+                    game_state.gold_earned_by_player_A == old_gold_A + expected_gold
+                ), f"Gold not correctly incremented for player A: expected {old_gold_A + expected_gold}, got {game_state.gold_earned_by_player_A}"
             else:
                 assert (
-                    game_state.kills_by_player_B == old_kills_B + 1
-                ), "Kills not correctly incremented for player B"
+                    game_state.gold_earned_by_player_B == old_gold_B + expected_gold
+                ), f"Gold not correctly incremented for player B: expected {old_gold_B + expected_gold}, got {game_state.gold_earned_by_player_B}"
 
     def update(self) -> None:
         """Update unit position (deterministic movement along path)."""
