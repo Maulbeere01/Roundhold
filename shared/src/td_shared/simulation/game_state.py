@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from ..game.game_balance import PLAYER_LIVES
 from ..game.protocol import PlayerID, SimulationData
-from .base import calculate_sim_dt
-from .entities import SimTower, SimUnit
+from .sim_tower import SimTower
+from .sim_unit import SimUnit
+from .utils import calculate_sim_dt
 
 
 class GameState:
