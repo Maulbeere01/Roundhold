@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from td_shared.game import (
     MAP_WIDTH_TILES,
     TILE_SIZE_PX,
+    TOWER_STATS,
     PlayerID,
     SimTowerData,
     tile_to_pixel,
@@ -46,6 +47,19 @@ class TowerPlacementService:
         Note: Validation is done in GameStateManager.build_tower().
         This method just creates the placement record.
         """
+        # Preconditions
+        assert player_id in (
+            "A",
+            "B",
+        ), f"player_id must be 'A' or 'B', not '{player_id}'"
+        assert (
+            tower_type in TOWER_STATS
+        ), f"tower_type '{tower_type}' does not exist in TOWER_STATS"
+        assert level >= 1, f"level must be >= 1, not {level}"
+        assert tile_row >= 0, f"tile_row must be >= 0, not {tile_row}"
+        assert tile_col >= 0, f"tile_col must be >= 0, not {tile_col}"
+
+        old_count = len(self._placements)
         norm_row = int(tile_row)
         norm_col = int(tile_col)
 
@@ -56,9 +70,35 @@ class TowerPlacementService:
             tile_col=norm_col,
             level=level,
         )
-        
+
         self._placements.append(placement)
-        return self._placement_to_sim_data(placement)
+        result = self._placement_to_sim_data(placement)
+
+        # Postconditions
+        assert (
+            len(self._placements) == old_count + 1
+        ), f"Placement should be added: expected {old_count + 1} placements, got {len(self._placements)}"
+        assert (
+            self._placements[-1].player_id == player_id
+        ), f"Last placement player_id should be {player_id}, not {self._placements[-1].player_id}"
+        assert (
+            self._placements[-1].tower_type == tower_type
+        ), f"Last placement tower_type should be {tower_type}, not {self._placements[-1].tower_type}"
+        assert (
+            self._placements[-1].tile_row == norm_row
+        ), f"Last placement tile_row should be {norm_row}, not {self._placements[-1].tile_row}"
+        assert (
+            self._placements[-1].tile_col == norm_col
+        ), f"Last placement tile_col should be {norm_col}, not {self._placements[-1].tile_col}"
+        assert result is not None, "Result should not be None"
+        assert (
+            result["player_id"] == player_id
+        ), f"Result player_id should be {player_id}, not {result.get('player_id')}"
+        assert (
+            result["tower_type"] == tower_type
+        ), f"Result tower_type should be {tower_type}, not {result.get('tower_type')}"
+
+        return result
 
     def get_sim_towers(self) -> list[SimTowerData]:
         """Return tower placements as SimTowerData list."""
@@ -67,7 +107,8 @@ class TowerPlacementService:
     def count_gold_mines(self, player_id: PlayerID) -> int:
         """Count the number of gold mines for a given player."""
         return sum(
-            1 for p in self._placements
+            1
+            for p in self._placements
             if p.player_id == player_id and p.tower_type == "gold_mine"
         )
 
