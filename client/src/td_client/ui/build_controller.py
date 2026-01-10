@@ -275,7 +275,18 @@ class BuildController:
             ) in game.ui_state.local_gold_mines
 
         # Optimistic updates
+        old_gold = game.player_state.my_gold
         game.player_state.my_gold -= tower_cost
+
+        # Precondition: Must have enough gold
+        assert (
+            old_gold >= tower_cost
+        ), f"Must have enough gold: have {old_gold}, need {tower_cost}"
+
+        # Postcondition: Gold should be deducted
+        assert (
+            game.player_state.my_gold == old_gold - tower_cost
+        ), f"Gold not correctly deducted: expected {old_gold - tower_cost}, got {game.player_state.my_gold}"
 
         # Trigger green flash on gold display
         game.ui_state.gold_flash_timer = 0.5
@@ -284,6 +295,18 @@ class BuildController:
 
         my_grid.place_tower(row, col)
         sprite_created = self.spawn_tower(game.player_id, row, col, building_type)
+
+        # Postcondition: If sprite was created, it should exist in appropriate dict
+        key = (game.player_id, row, col)
+        if sprite_created:
+            if building_type == "gold_mine":
+                assert (
+                    key in game.ui_state.local_gold_mines
+                ), f"Gold mine should exist in local_gold_mines after creation at ({row}, {col})"
+            else:
+                assert (
+                    key in game.ui_state.local_towers
+                ), f"Tower should exist in local_towers after creation at ({row}, {col})"
 
         logger.info(
             "Placing %s at (%d,%d), sending request... (sprite existed: %s, created: %s)",
@@ -328,10 +351,29 @@ class BuildController:
 
     def _on_build_tower_response(self, event: BuildTowerResponseEvent) -> None:
         """Handle build tower response - rollback if failed."""
+        # Preconditions
+        assert event is not None, "event must not be None"
+        assert event.tile_row >= 0, f"tile_row must be >= 0, not {event.tile_row}"
+        assert event.tile_col >= 0, f"tile_col must be >= 0, not {event.tile_col}"
+        assert (
+            event.tower_type in TOWER_STATS
+        ), f"tower_type must exist in TOWER_STATS, not '{event.tower_type}'"
+
         if event.success:
             logger.info(
                 "BuildTower succeeded at (%d,%d)", event.tile_row, event.tile_col
             )
+            # Postcondition: If we optimistically created a sprite, it should still exist
+            if not event.sprite_existed:
+                key = (self.game.player_id, event.tile_row, event.tile_col)
+                if event.tower_type == "gold_mine":
+                    assert (
+                        key in self.game.ui_state.local_gold_mines
+                    ), f"Gold mine should exist at ({event.tile_row}, {event.tile_col}) after success"
+                else:
+                    assert (
+                        key in self.game.ui_state.local_towers
+                    ), f"Tower should exist at ({event.tile_row}, {event.tile_col}) after success"
             return
 
         logger.warning(
@@ -343,7 +385,13 @@ class BuildController:
         # Rollback gold based on the tower type that was attempted
         tower_stats = TOWER_STATS.get(event.tower_type, TOWER_STATS["standard"])
         tower_cost = int(tower_stats["cost"])
+        old_gold = self.game.player_state.my_gold
         self.game.player_state.my_gold += tower_cost
+
+        # Postcondition: Gold should be refunded
+        assert (
+            self.game.player_state.my_gold == old_gold + tower_cost
+        ), f"Gold not correctly refunded: expected {old_gold + tower_cost}, got {self.game.player_state.my_gold}"
 
         # Trigger green flash on gold display (refund)
         self.game.ui_state.gold_flash_timer = 0.5
@@ -359,8 +407,16 @@ class BuildController:
                 )
             )
 
-        # Rollback sprite if we created it
-        if not event.sprite_existed:
+        # Rollback sprite
+        key = (self.game.player_id, event.tile_row, event.tile_col)
+        sprite_exists_now = False
+        if event.tower_type == "gold_mine":
+            sprite_exists_now = key in self.game.ui_state.local_gold_mines
+        else:
+            sprite_exists_now = key in self.game.ui_state.local_towers
+
+        # Always remove sprite if it exists (optimistic creation should be rolled back)
+        if sprite_exists_now:
             self.remove_tower(
                 self.game.player_id, event.tile_row, event.tile_col, event.tower_type
             )
@@ -370,6 +426,15 @@ class BuildController:
                 event.tile_row,
                 event.tile_col,
             )
+            # Postcondition: Sprite should be removed
+            if event.tower_type == "gold_mine":
+                assert (
+                    key not in self.game.ui_state.local_gold_mines
+                ), f"Gold mine should be removed from local_gold_mines at ({event.tile_row}, {event.tile_col})"
+            else:
+                assert (
+                    key not in self.game.ui_state.local_towers
+                ), f"Tower should be removed from local_towers at ({event.tile_row}, {event.tile_col})"
 
         # Rollback grid if it was empty
         if event.was_empty:

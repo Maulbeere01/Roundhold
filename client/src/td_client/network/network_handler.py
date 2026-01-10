@@ -12,11 +12,11 @@ import logging
 from typing import TYPE_CHECKING
 
 from td_client.events import (
+    BuildTowerResponseEvent,
     EventBus,
     RequestBuildTowerEvent,
-    RequestSendUnitsEvent,
     RequestRoundAckEvent,
-    BuildTowerResponseEvent,
+    RequestSendUnitsEvent,
     SendUnitsResponseEvent,
 )
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 class NetworkHandler:
     """Handles network requests triggered by events.
-    
+
     Subscribes to client action events (RequestBuildTowerEvent, etc.)
     and executes the corresponding network calls via NetworkClient.
     Responses are published back to the EventBus.
@@ -38,13 +38,15 @@ class NetworkHandler:
         self.network_client = network_client
         self.event_bus = event_bus
         self._subscriptions: list = []
-        
+
         self._subscribe()
 
     def _subscribe(self) -> None:
         """Subscribe to all client action events."""
         self._subscriptions.append(
-            self.event_bus.subscribe(RequestBuildTowerEvent, self._on_request_build_tower)
+            self.event_bus.subscribe(
+                RequestBuildTowerEvent, self._on_request_build_tower
+            )
         )
         self._subscriptions.append(
             self.event_bus.subscribe(RequestSendUnitsEvent, self._on_request_send_units)
@@ -68,7 +70,7 @@ class NetworkHandler:
             event.tile_row,
             event.tile_col,
         )
-        
+
         self.network_client.build_tower(
             player_id=event.player_id,
             tower_type=event.tower_type,
@@ -76,12 +78,23 @@ class NetworkHandler:
             tile_col=event.tile_col,
             level=event.level,
             on_done=lambda success: self._publish_build_response(
-                success, event.tile_row, event.tile_col, event.was_empty, event.sprite_existed
+                success,
+                event.tile_row,
+                event.tile_col,
+                event.tower_type,
+                event.was_empty,
+                event.sprite_existed,
             ),
         )
 
     def _publish_build_response(
-        self, success: bool, row: int, col: int, was_empty: bool, sprite_existed: bool
+        self,
+        success: bool,
+        row: int,
+        col: int,
+        tower_type: str,
+        was_empty: bool,
+        sprite_existed: bool,
     ) -> None:
         """Publish build tower response event."""
         self.event_bus.publish(
@@ -89,6 +102,7 @@ class NetworkHandler:
                 success=success,
                 tile_row=row,
                 tile_col=col,
+                tower_type=tower_type,
                 was_empty=was_empty,
                 sprite_existed=sprite_existed,
             )
@@ -101,7 +115,7 @@ class NetworkHandler:
             event.player_id,
             event.route,
         )
-        
+
         self.network_client.send_units(
             player_id=event.player_id,
             units=[
@@ -114,7 +128,9 @@ class NetworkHandler:
             on_done=self._publish_send_units_response,
         )
 
-    def _publish_send_units_response(self, success: bool, total_gold: int | None) -> None:
+    def _publish_send_units_response(
+        self, success: bool, total_gold: int | None
+    ) -> None:
         """Publish send units response event."""
         self.event_bus.publish(
             SendUnitsResponseEvent(success=success, total_gold=total_gold)
@@ -127,7 +143,7 @@ class NetworkHandler:
             event.player_id,
             event.round_number,
         )
-        
+
         self.network_client.round_ack(
             player_id=event.player_id,
             round_number=event.round_number,

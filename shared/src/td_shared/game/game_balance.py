@@ -23,6 +23,7 @@ class UnitStats(TypedDict):
     speed: float
     base_damage: int
 
+
 class TowerStats(TypedDict):
     cost: int
     damage: int
@@ -31,23 +32,18 @@ class TowerStats(TypedDict):
 
 
 UNIT_STATS: dict[str, UnitStats] = {
-    "standard": {
-        "cost": 5,
-        "health": 50,
-        "speed": 120.0,
-        "base_damage": 1
-    },
-        "pawn": {
+    "standard": {"cost": 5, "health": 50, "speed": 120.0, "base_damage": 1},
+    "pawn": {
         "cost": 15,
         "health": 120,
         "speed": 90.0,
         "base_damage": 10,
     },
-        "archer": {
+    "archer": {
         "cost": 10,
-        "health": 30,     # Lower health
-        "speed": 110.0,   # Fast
-        "base_damage": 2  # Higher damage
+        "health": 30,  # Lower health
+        "speed": 110.0,  # Fast
+        "base_damage": 2,  # Higher damage
     },
 }
 
@@ -105,7 +101,28 @@ def tile_to_pixel(row: int, col: int) -> tuple[float, float]:
     Returns:
         Tuple of (x, y) pixel coordinates
     """
-    return (float(col * TILE_SIZE_PX), float(row * TILE_SIZE_PX))
+    # Preconditions
+    assert isinstance(row, int), f"row must be an int, not {type(row)}"
+    assert isinstance(col, int), f"col must be an int, not {type(col)}"
+    assert row >= 0, f"row must be >= 0, not {row}"
+    assert col >= 0, f"col must be >= 0, not {col}"
+
+    result = (float(col * TILE_SIZE_PX), float(row * TILE_SIZE_PX))
+
+    # Postconditions
+    assert len(result) == 2, "Result must have 2 coordinates"
+    assert isinstance(result[0], float), "x coordinate must be float"
+    assert isinstance(result[1], float), "y coordinate must be float"
+    assert result[0] >= 0, f"x coordinate must be >= 0, not {result[0]}"
+    assert result[1] >= 0, f"y coordinate must be >= 0, not {result[1]}"
+    assert (
+        result[0] == float(col * TILE_SIZE_PX)
+    ), f"x must equal col * TILE_SIZE_PX: expected {col * TILE_SIZE_PX}, got {result[0]}"
+    assert (
+        result[1] == float(row * TILE_SIZE_PX)
+    ), f"y must equal row * TILE_SIZE_PX: expected {row * TILE_SIZE_PX}, got {result[1]}"
+
+    return result
 
 
 GAME_PATHS = {
