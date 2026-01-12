@@ -2,9 +2,14 @@ from pathlib import Path
 
 import pygame
 
-# Config - Use absolute path relative to this file
+# Config
 BASE_PATH = Path(__file__).parent / "sounds"
 FILE_EXTENSIONS = (".wav", ".mp3", ".ogg")
+
+# Channel configuration
+CHANNEL_UI = 0
+CHANNEL_UNITS = 1
+CHANNEL_ENVIRONMENT = 2
 
 
 class AudioService:
@@ -14,6 +19,7 @@ class AudioService:
         if not AudioService._initialized:
             try:
                 pygame.mixer.init()
+                pygame.mixer.set_num_channels(8)  
                 AudioService._initialized = True
             except pygame.error:
                 AudioService._initialized = False
@@ -34,19 +40,19 @@ class AudioService:
     def play_ui_sound(self, sound_name: str) -> None:
         path = self._BASE_PATH / "ui" / sound_name
         if sound := self._get_sound(path):
-            pygame.mixer.find_channel(True).play(sound)
+            self._play_on_channel(sound, CHANNEL_UI)
 
     # Unit Sounds
     def play_unit_sound(self, unit_type: str, sound_name: str) -> None:
         path = self._BASE_PATH / "units" / unit_type / sound_name
         if sound := self._get_sound(path):
-            pygame.mixer.find_channel(True).play(sound)
+            self._play_on_channel(sound, CHANNEL_UNITS)
 
     # Environment Sounds
     def play_environment_sound(self, sound_name: str) -> None:
         path = self._BASE_PATH / "environment" / sound_name
         if sound := self._get_sound(path):
-            pygame.mixer.find_channel(True).play(sound)
+            self._play_on_channel(sound, CHANNEL_ENVIRONMENT)
 
     # Music
     def play_music(self, music_name: str, loops: int = -1) -> None:
@@ -73,7 +79,11 @@ class AudioService:
 
     # ---- Private Utilities ----
 
-    # Flach (dein Stil)
+    def _play_on_channel(self, sound: pygame.mixer.Sound, channel_id: int) -> None:
+        """Play sound on specific channel, new sound automatically stops and replaces the old one."""
+        channel = pygame.mixer.Channel(channel_id)
+        channel.play(sound) 
+
     def _get_sound(self, path: Path) -> pygame.mixer.Sound | None:
         if not AudioService._initialized:
             return None
