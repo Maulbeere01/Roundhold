@@ -1,0 +1,11 @@
+{
+    "python.analysis.extraPaths": [
+        "./shared/src"
+    ],
+    "chat.tools.terminal.autoApprove": {
+        "/^cd /home/fabi/Roundhold && python3 << 'EOF'\nfrom server\\.src\\.td_server\\.services\\.wave_queue import WaveQueue\n\nqueue = WaveQueue\\(\\)\nunits = \\[\n    \\{\"player_id\": \"A\", \"unit_type\": \"standard\", \"route\": 1, \"spawn_tick\": 0\\},\n    \\{\"player_id\": \"A\", \"unit_type\": \"standard\", \"route\": 1, \"spawn_tick\": 0\\},\n\\]\n\nprint\\(\"Before enqueue:\", units\\)\nqueue\\.enqueue_units\\(units, tick_rate=20\\)\nprint\\(\"After enqueue:\", units\\)\nprint\\(\"In queue:\", queue\\.get_units\\(\\)\\)\nEOF$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

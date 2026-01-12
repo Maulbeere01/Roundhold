@@ -114,11 +114,11 @@ class WaveQueue:
         for route, new_list in by_route.items():
             # Sort new units per route for deterministic assignment
             new_list.sort(key=lambda d: int(d.get("spawn_tick", 0)))
-            base = current_last_by_route.get(route, -delay_ticks)
+            base = current_last_by_route.get(route, 0)
             next_tick = base + delay_ticks
 
             for data in new_list:
-                if int(data["spawn_tick"]) <= 0:
+                if int(data["spawn_tick"]) == 0:
                     data["spawn_tick"] = next_tick
                     next_tick += delay_ticks
                 assert (

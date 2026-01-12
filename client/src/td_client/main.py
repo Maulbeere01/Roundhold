@@ -3,6 +3,7 @@ import logging
 import pygame
 
 from td_client.assets import AssetLoader
+from td_client.audio.audio import AudioService
 from td_client.config import AssetPaths, GameSettings
 from td_client.display import DisplayManager
 from td_client.events import EventBus
@@ -29,6 +30,7 @@ class GameApp:
         self.asset_paths = AssetPaths()
         self.asset_loader = AssetLoader(self.asset_paths)
         self.display_manager = DisplayManager()
+        self.audio = AudioService()
         self.clock = self.display_manager.clock
 
         # Central event bus for all client-side communication
@@ -73,6 +75,12 @@ class GameApp:
                         event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE
                     ):
                         running = False
+                    elif event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
+                        # Toggle fullscreen with F11
+                        self.display_manager.toggle_fullscreen()
+                    elif event.type == pygame.VIDEORESIZE:
+                        # Handle window resize
+                        self.display_manager.handle_resize(event.w, event.h)
                     else:
                         self.current_screen.handle_event(event)
 

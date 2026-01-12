@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import pygame
 from td_shared.game import TILE_SIZE_PX, TOWER_STATS, UNIT_STATS
 
 from td_client.events import (
@@ -114,37 +115,42 @@ class BuildController:
         """Handle mouse click - publishes appropriate events."""
         mx, my = event.pos
 
-        # Priority 1: Tower button (toggle build mode)
-        if game.ui_state.tower_button.collidepoint(mx, my):
-            self._toggle_build_mode(game)
-            return
-
-        # Priority 2: Send units buttons
+        # Priority 1: Send units buttons (unverändert)
         for idx, rect in enumerate(game.ui_state.barracks_buttons, start=1):
             if rect.collidepoint(mx, my):
-                # Set click feedback
                 import time
 
+                game.audio.play_ui_sound("button")
                 game.ui_state.last_clicked_route = idx
                 game.ui_state.click_time = time.time()
-                self._request_send_units(game, idx)
+                
+                # Check if shift is held - if so, send 5 units
+                mods = pygame.key.get_mods()
+                shift_held = bool(mods & pygame.KMOD_SHIFT)
+                count = 5 if shift_held else 1
+                
+                for _ in range(count):
+                    self._request_send_units(game, idx)
                 return
 
-        # Priority 3: Unit Selection Buttons (Bottom)
+        # Priority 2: Unit Selection Buttons (unverändert)
         for rect, u_type in game.ui_state.unit_selection_buttons:
             if rect.collidepoint(mx, my):
+                game.audio.play_ui_sound("button")
                 game.ui_state.selected_unit_type = u_type
-                logger.info(f"Selected unit type: {u_type}")
                 return
 
-        # Priority 4: Building Selection Buttons
+        # Priority 3: Building Selection Buttons
+        # NEU: Aktiviert jetzt sofort den Baumodus
         for rect, b_type in game.ui_state.building_selection_buttons:
             if rect.collidepoint(mx, my):
+                game.audio.play_ui_sound("button")
                 game.ui_state.selected_building_type = b_type
-                logger.info(f"Selected building type: {b_type}")
+                game.ui_state.tower_build_mode = True  # Sofort aktivieren
+                logger.info(f"Building selected: {b_type}, Build Mode ON")
                 return
 
-        # Priority 5: Tower placement (if in build mode)
+        # Priority 4: Tower placement (Wenn Modus an ist)
         if game.ui_state.tower_build_mode:
             self._request_build_tower(game, mx, my)
 
@@ -180,6 +186,7 @@ class BuildController:
 
         # Optimistic gold deduction
         game.player_state.my_gold -= unit_cost
+
 
         # Trigger green flash on gold display
         game.ui_state.gold_flash_timer = 0.5
@@ -288,6 +295,9 @@ class BuildController:
             game.player_state.my_gold == old_gold - tower_cost
         ), f"Gold not correctly deducted: expected {old_gold - tower_cost}, got {game.player_state.my_gold}"
 
+        # Play deploy sound
+        game.audio.play_unit_sound("tower", "deploy")
+
         # Trigger green flash on gold display
         game.ui_state.gold_flash_timer = 0.5
         game.ui_state.gold_flash_color = (255, 100, 100)  # Red flash for spend
@@ -342,12 +352,17 @@ class BuildController:
         else:
             logger.error("No event bus available - cannot send build tower request")
 
-        # Exit build mode
-        game.ui_state.tower_build_mode = False
-        game.ui_state.hover_tile = None
+        # Check if shift is held - if so, stay in build mode
+        mods = pygame.key.get_mods()
+        shift_held = bool(mods & pygame.KMOD_SHIFT)
 
-        if self.event_bus:
-            self.event_bus.publish(ToggleBuildModeEvent(enabled=False))
+        if not shift_held:
+            # Exit build mode only if shift is not held
+            game.ui_state.tower_build_mode = False
+            game.ui_state.hover_tile = None
+
+            if self.event_bus:
+                self.event_bus.publish(ToggleBuildModeEvent(enabled=False))
 
     def _on_build_tower_response(self, event: BuildTowerResponseEvent) -> None:
         """Handle build tower response - rollback if failed."""
