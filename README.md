@@ -1,25 +1,14 @@
-# Roundhold – Installations- und Einrichtungsanleitung
-
-Diese Dokumentation beschreibt die Installation von Python, die Einrichtung der Entwicklungsumgebung sowie den Start des Projekts. Die Anleitung deckt sowohl Windows als auch Linux (bzw. WSL2) ab.
+# Installations- und Einrichtungsanleitung (macOS)
 
 ## 1. Voraussetzungen
 
 ### Python Installation
+
 Für das Projekt wird **Python 3.12** benötigt.
 
 > **Hinweis:** Es wird explizit Python 3.12 empfohlen, da neuere Versionen (z. B. 3.14) in Tests Kompatibilitätsprobleme mit Pygame hatten.
 
-*   **Windows:**
-    *   Download: [Python 3.12.0 (Windows x64)](https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe)
-    *   **Wichtig:** Während der Installation muss die Option **"Add Python.exe to PATH"** aktiviert werden.
-*   **Linux / WSL2:**
-    *   Installation über den Paketmanager (z. B. `sudo apt install python3 python3-venv`).
-
----
-
 ## 2. Projekt klonen
-
-Repository lokal klonen:
 
 ```bash
 # Über HTTPS
@@ -34,49 +23,27 @@ cd Roundhold
 
 ---
 
-## 3. Entwicklungsumgebung einrichten (Virtual Environment)
+## 3. Entwicklungsumgebung einrichten
 
-Zur Isolierung der Abhängigkeiten wird ein Virtual Environment (`.venv`) verwendet.
+1. **Erstellung des Environments:**
 
-### Erstellung und Aktivierung
+   ```bash
+   python3.12 -m venv .venv
+   ```
 
-1.  **Erstellung des Environments:**
-    ```bash
-    # Windows und Linux
-    python -m venv .venv
-    ```
-    *(Sollte unter Linux `python` nicht auf Version 3.xx zeigen, sollte man `python3` verwenden.)*
+2. **Aktivierung des Environments:**
 
-2.  **Aktivierung des Environments:**
-
-    *   **Linux / WSL / Git Bash:**
-        ```bash
-        source .venv/bin/activate
-        ```
-
-    *   **Windows (CMD):**
-        ```cmd
-        .venv/Scripts/activate.bat
-        ```
-
-    *   **Windows (PowerShell):**
-        ```powershell
-        .venv/Scripts/Activate.ps1
-        ```
-        
-        **Hinweis:** Falls Fehler "Ausführung von Skripts ist auf diesem System deaktiviert":
-        ```powershell
-        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-        ```
+   ```bash
+   source .venv/bin/activate
+   ```
 
 ### Konfiguration in VS Code
+
 Falls Visual Studio Code genutzt wird, muss der korrekte Python-Interpreter für das Projekt ausgewählt werden:
 
-1.  Eine beliebige `.py`-Datei im Projekt öffnen.
-2.  In der unteren Statusleiste auf die angezeigte Python-Version klicken.
-3.  Den Interpreter auswählen, der auf das virtuelle Environment verweist:
-    *   Linux/WSL: `./.venv/bin/python`
-    *   Windows: `./.venv/Scripts/python.exe`
+1. Eine beliebige `.py`-Datei im Projekt öffnen.
+2. In der unteren Statusleiste auf die angezeigte Python-Version klicken.
+3. Den Interpreter auswählen, der auf das virtuelle Environment verweist: `./.venv/bin/python`
 
 Nach erfolgter Auswahl wird das Environment in neuen Terminals innerhalb von VS Code automatisch aktiviert.
 
@@ -100,9 +67,7 @@ pip install -e ./client
 
 ---
 
-## 5. Systemprüfung
-
-Zur Verifizierung der Installation können folgende Befehle genutzt werden:
+## 5. prüfen
 
 ```bash
 # Prüfen der Python-Version (Sollte 3.12.x anzeigen)
@@ -116,41 +81,52 @@ pip --version
 
 ## 6. Spiel starten
 
-### Windows (PowerShell)
-Zum Starten steht ein PowerShell-Skript bereit:
-
-```powershell
-./run_game.ps1
-```
-
-**Fehlerbehebung:**
-Sollte die Ausführung von Skripten blockiert sein, kann das Skript mit folgendem Befehl gestartet werden:
-```powershell
-powershell -ExecutionPolicy Bypass -File ./run_game.ps1
-```
-
-### Linux / WSL (Bash)
+### Via Shell-Skript
 
 ```bash
 ./run_game.sh
+```
+
+Falls das Skript nicht ausführbar ist:
+
+```bash
+chmod +x run_game.sh
+./run_game.sh
+```
+
+### Manueller Start (ohne Shell-Skript)
+
+Falls das Shell-Skript nicht verwendet werden soll, kann das Spiel auch manuell gestartet werden:
+
+```bash
+# Sicherstellen, dass das venv aktiviert ist
+source .venv/bin/activate
+
+# Server starten (in einem separaten Terminal)
+python -m server
+
+# Client starten (in einem anderen Terminal)
+python -m client
 ```
 
 ---
 
 ## 7. Tests ausführen
 
-Um die Testsuite (163 Tests) auszuführen:
 
 ```bash
 python -m pytest tests/
 ```
 
+---
+
 ## Zusammenfassung der Befehle
 
-| Ziel | Befehl (Linux/WSL) | Befehl (Windows PowerShell) |
-| :--- | :--- | :--- |
-| **Venv erstellen** | `python3 -m venv .venv` | `python -m venv .venv` |
-| **Venv aktivieren** | `source .venv/bin/activate` | `./.venv/Scripts/Activate.ps1` |
-| **Abhängigkeiten** | `pip install -r requirements-dev.txt` | *(identisch)* |
-| **Module linken** | `pip install -e ./shared` (usw.) | *(identisch)* |
-| **Starten** | `./run_game.sh` | `./run_game.ps1` |
+| Ziel | Befehl |
+| :--- | :--- |
+| **Venv erstellen** | `python3.12 -m venv .venv` |
+| **Venv aktivieren** | `source .venv/bin/activate` |
+| **Abhängigkeiten** | `pip install -r requirements-dev.txt` |
+| **Module linken** | `pip install -e ./shared && pip install -e ./server && pip install -e ./client` |
+| **Starten** | `./run_game.sh` |
+| **Manuell starten** | `python -m server` / `python -m client` |
