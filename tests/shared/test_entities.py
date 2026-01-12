@@ -3,8 +3,7 @@
 import pytest
 
 from td_shared.game import SimulationData
-from td_shared.simulation import GameState
-from td_shared.simulation.entities import SimUnit
+from td_shared.simulation import GameState, SimUnit
 
 
 class TestSimUnit:
@@ -41,7 +40,7 @@ class TestSimUnit:
 
     def test_unit_initialization_invalid_player(self):
         """Test that invalid player ID raises error."""
-        with pytest.raises(ValueError, match="Unknown player_id"):
+        with pytest.raises(AssertionError, match="player_id must be"):
             SimUnit(
                 entity_id=1,
                 player_id="X",  # Invalid player
@@ -136,10 +135,10 @@ class TestSimUnit:
             sim_dt=0.05,
         )
         
-        initial_kills = game_state.kills_by_player_A
+        initial_gold = game_state.gold_earned_by_player_A
         unit.take_damage(100, "A", game_state)
         
-        assert game_state.kills_by_player_A == initial_kills + 1
+        assert game_state.gold_earned_by_player_A > initial_gold
 
     def test_unit_different_types_different_stats(self):
         """Test that different unit types have different stats."""

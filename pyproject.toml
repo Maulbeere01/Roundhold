@@ -61,5 +61,9 @@ exclude = [
 
 [tool.pytest.ini_options]
 pythonpath = [
-  "."
+  ".",
+  "server/src",
+  "client/src",
+  "shared/src"
 ]
+testpaths = ["tests"]

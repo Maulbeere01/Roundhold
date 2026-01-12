@@ -3,7 +3,7 @@
 
 import grpc
 
-from shared.src.td_shared.protobuf import (
+from td_shared.protobuf import (
     game_pb2 as shared_dot_src_dot_td__shared_dot_protobuf_dot_game__pb2,
 )
 

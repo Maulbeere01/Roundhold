@@ -26,7 +26,7 @@ class AudioService:
 
         self._BASE_PATH = BASE_PATH
         self._cache: dict[str, pygame.mixer.Sound] = {}
-        self._sound_volume = 1.0  # Default volume
+        self._sound_volume = 0.6  # Default volume
 
     # ---- Public APIs ----
 
