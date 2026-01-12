@@ -1,144 +1,107 @@
+#!/bin/bash
+
 # Run script: Starts server and 2 clients for local testing
-# Usage: .\run_game.ps1
+# Usage: ./run_game.sh
 
 # Colors for output
-function Write-Success { Write-Host $args -ForegroundColor Green }
-function Write-Warning { Write-Host $args -ForegroundColor Yellow }
-function Write-Error { Write-Host $args -ForegroundColor Red }
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-$ServerJob = $null
-$Client1Job = $null
-$Client2Job = $null
+SERVER_PID=""
+CLIENT1_PID=""
+CLIENT2_PID=""
+SHUTDOWN_REQUESTED=false
 
-function Cleanup {
-    Write-Warning "`nShutting down all processes..."
+cleanup() {
+    if [ "$SHUTDOWN_REQUESTED" = true ]; then
+        return
+    fi
+    SHUTDOWN_REQUESTED=true
 
-    if ($Client1Job) {
-        Stop-Job -Job $Client1Job -ErrorAction SilentlyContinue
-        Remove-Job -Job $Client1Job -ErrorAction SilentlyContinue
-        Write-Success "Client 1 stopped"
+    echo -e "\n${YELLOW}Shutting down all processes...${NC}"
+
+    safe_kill() {
+        local pid=$1
+        local name=$2
+        if [ ! -z "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo -n "Stopping $name (PID: $pid)... "
+            kill -TERM "$pid" 2>/dev/null || true
+            for i in {1..30}; do
+                if ! kill -0 "$pid" 2>/dev/null; then
+                    echo -e "${GREEN}stopped${NC}"
+                    return 0
+                fi
+                sleep 0.1
+            done
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -KILL "$pid" 2>/dev/null || true
+                echo -e "${YELLOW}force killed${NC}"
+            fi
+        fi
     }
 
-    if ($Client2Job) {
-        Stop-Job -Job $Client2Job -ErrorAction SilentlyContinue
-        Remove-Job -Job $Client2Job -ErrorAction SilentlyContinue
-        Write-Success "Client 2 stopped"
-    }
+    safe_kill "$CLIENT1_PID" "Client 1"
+    safe_kill "$CLIENT2_PID" "Client 2"
 
-    if ($ServerJob) {
-        Stop-Job -Job $ServerJob -ErrorAction SilentlyContinue
-        Remove-Job -Job $ServerJob -ErrorAction SilentlyContinue
-        Write-Success "Server stopped"
-    }
+    safe_kill "$SERVER_PID" "Server"
 
-    # Also kill any orphaned processes
-    Get-Process python -ErrorAction SilentlyContinue | Where-Object {
-        $_.CommandLine -match "td_server|td_client"
-    } | Stop-Process -Force -ErrorAction SilentlyContinue
-
-    Write-Success "All processes stopped"
+    echo -e "${GREEN}All processes stopped${NC}"
+    exit 0
 }
 
-# Register cleanup on exit
-Register-EngineEvent PowerShell.Exiting -Action { Cleanup } | Out-Null
-$null = Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress -Action {
-    Cleanup
-    [Environment]::Exit(0)
-}
+trap cleanup SIGINT SIGTERM EXIT
 
-try {
-    Write-Success "Starting game server and clients...`n"
+echo -e "${GREEN}Starting game server and clients...${NC}\n"
 
-    # Check for and kill any existing game processes
-    $ExistingProcesses = Get-Process python -ErrorAction SilentlyContinue | Where-Object {
-        $_.CommandLine -match "td_server|td_client"
-    }
+# Check for and kill any existing game processes
+EXISTING_SERVER=$(ps aux | grep -E "python.*td_server" | grep -v grep | awk '{print $2}')
+EXISTING_CLIENTS=$(ps aux | grep -E "python.*td_client" | grep -v grep | awk '{print $2}')
 
-    if ($ExistingProcesses) {
-        Write-Warning "Found existing processes, cleaning up..."
-        $ExistingProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 1
-    }
+if [ ! -z "$EXISTING_SERVER" ] || [ ! -z "$EXISTING_CLIENTS" ]; then
+    echo -e "${YELLOW}Found existing processes, cleaning up...${NC}"
+    [ ! -z "$EXISTING_SERVER" ] && echo "$EXISTING_SERVER" | xargs kill -9 2>/dev/null || true
+    [ ! -z "$EXISTING_CLIENTS" ] && echo "$EXISTING_CLIENTS" | xargs kill -9 2>/dev/null || true
+    sleep 1
+fi
 
-    # Verify python is available
-    if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-        Write-Error "Error: python command not found"
-        exit 1
-    }
+if ! command -v python &> /dev/null; then
+    echo -e "${RED}Error: python command not found${NC}"
+    exit 1
+fi
 
-    Write-Warning "Starting server..."
-    $ServerJob = Start-Job -ScriptBlock {
-        Set-Location $using:PWD
-        python -m server.src.td_server.main
-    }
-    Write-Host "Server started with Job ID: $($ServerJob.Id)"
+echo -e "${YELLOW}Starting server...${NC}"
+python -m server.src.td_server.main &
+SERVER_PID=$!
+echo "Server started with PID: $SERVER_PID"
 
-    Write-Host "Waiting for server to initialize..."
-    Start-Sleep -Seconds 2
+echo "Waiting for server to initialize..."
+sleep 2
 
-    # Check if server is still running
-    if ($ServerJob.State -eq "Failed" -or $ServerJob.State -eq "Completed") {
-        Write-Error "Error: Server failed to start"
-        Write-Host "Server output:"
-        Receive-Job -Job $ServerJob
-        Cleanup
-        exit 1
-    }
+if ! kill -0 $SERVER_PID 2>/dev/null; then
+    echo -e "${RED}Error: Server failed to start${NC}"
+    exit 1
+fi
 
-    Write-Success "Server is running`n"
+echo -e "${GREEN}Server is running${NC}\n"
 
-    Write-Warning "Starting client 1..."
-    $Client1Job = Start-Job -ScriptBlock {
-        Set-Location $using:PWD
-        python -m client.src.td_client.main
-    }
-    Write-Host "Client 1 started with Job ID: $($Client1Job.Id)"
+echo -e "${YELLOW}Starting client 1...${NC}"
+python -m client.src.td_client.main &
+CLIENT1_PID=$!
+echo "Client 1 started with PID: $CLIENT1_PID"
 
-    Start-Sleep -Seconds 1
+sleep 1
 
-    Write-Warning "Starting client 2..."
-    $Client2Job = Start-Job -ScriptBlock {
-        Set-Location $using:PWD
-        python -m client.src.td_client.main
-    }
-    Write-Host "Client 2 started with Job ID: $($Client2Job.Id)"
+echo -e "${YELLOW}Starting client 2...${NC}"
+python -m client.src.td_client.main &
+CLIENT2_PID=$!
+echo "Client 2 started with PID: $CLIENT2_PID"
 
-    Write-Success "`nAll processes started!"
-    Write-Host "Server Job ID: $($ServerJob.Id)"
-    Write-Host "Client 1 Job ID: $($Client1Job.Id)"
-    Write-Host "Client 2 Job ID: $($Client2Job.Id)"
-    Write-Host "`nPress Ctrl+C to stop all processes"
-    Write-Host "`nMonitoring processes... (showing output every 5 seconds)"
+echo -e "\n${GREEN}All processes started!${NC}"
+echo -e "Server PID: $SERVER_PID"
+echo -e "Client 1 PID: $CLIENT1_PID"
+echo -e "Client 2 PID: $CLIENT2_PID"
+echo -e "\nPress Ctrl+C to stop all processes\n"
 
-    # Keep the script running and show output
-    while ($true) {
-        Start-Sleep -Seconds 5
-
-        # Check job states
-        $ServerState = $ServerJob.State
-        $Client1State = $Client1Job.State
-        $Client2State = $Client2Job.State
-
-        if ($ServerState -ne "Running") {
-            Write-Error "`nServer has stopped unexpectedly!"
-            Write-Host "Server output:"
-            Receive-Job -Job $ServerJob
-            break
-        }
-
-        # Optionally show recent output
-        $ServerOutput = Receive-Job -Job $ServerJob -Keep
-        $Client1Output = Receive-Job -Job $Client1Job -Keep
-        $Client2Output = Receive-Job -Job $Client2Job -Keep
-
-        if ($ServerOutput) {
-            Write-Host "`n--- Server Output ---" -ForegroundColor Cyan
-            Write-Host $ServerOutput[-10..-1] # Show last 10 lines
-        }
-    }
-
-} catch {
-    Write-Error "An error occurred: $_"
-} finally {
-    Cleanup
-}
+wait
